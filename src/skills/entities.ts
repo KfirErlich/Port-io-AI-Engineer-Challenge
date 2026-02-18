@@ -1,5 +1,5 @@
 // Skills related to entities
-import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+//import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 // Placeholder for entity-related skills
 // Add your entity skills here as you develop them
