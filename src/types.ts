@@ -1,4 +1,4 @@
-// הגדרות Interfaces ל-Blueprints ו-Entities
+// Interface definitions for Blueprints and Entities
 
 export interface PortBlueprint {
   identifier: string;

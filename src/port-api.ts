@@ -1,11 +1,11 @@
-// פונקציות העזר לקריאות ה-API של Port
+// Helper functions for Port API calls
 import axios from "axios";
 import { PortBlueprint } from "./types.js";
 
 const PORT_API_URL = "https://api.port.io/v1";
 
 /**
- * מקבל access token מ-Port API באמצעות client credentials
+ * Get access token from Port API using client credentials
  */
 export async function getAccessToken(): Promise<string> {
   const response = await axios.post(`${PORT_API_URL}/auth/access_token`, {
@@ -16,7 +16,7 @@ export async function getAccessToken(): Promise<string> {
 }
 
 /**
- * מביא את כל ה-blueprints הקיימים ב-Port
+ * Fetch all existing blueprints from Port
  */
 export async function getBlueprints(): Promise<PortBlueprint[]> {
   const token = await getAccessToken();

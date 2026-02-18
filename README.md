@@ -1,160 +1,130 @@
-# Port AI Challenge
+```markdown
+# Port AI Challenge - MCP Server (Streamable HTTP Edition)
 
-Node.js TypeScript project for Port.io integration with MCP server capabilities. This project implements a Model Context Protocol (MCP) server that provides AI assistants with tools to interact with Port.io's Software Catalog API.
+Node.js TypeScript project for Port.io integration with MCP server capabilities. This project implements a Model Context Protocol (MCP) server that provides AI assistants with tools to interact with Port.io's Software Catalog API via a **Streamable HTTP transport**, allowing for remote connectivity through tunnels like ngrok.
 
-## Prerequisites
+## 🚀 Key Features Added
+- **HTTP Server Support**: Migrated from `stdio` to `Express` to allow remote connections.
+- **Session Management**: Full support for persistent AI sessions via `mcp-session-id`.
+- **ngrok Compatibility**: Pre-configured to bypass browser warnings.
+- **Enhanced Logging**: Real-time terminal feedback for tool discovery and execution.
+
+## 📋 Prerequisites
 
 - Node.js (v18 or higher)
 - npm or yarn
-- Port.io account with API credentials (Client ID and Client Secret)
+- Port.io account with API credentials
+- **ngrok** (for local-to-remote tunneling)
 
-## Installation
+## 🛠️ Installation
 
 ```bash
 npm install
-```
-
-## Environment Variables
-
-Create a `.env` file in the root directory with the following variables:
 
 ```
+
+## 🔐 Environment Variables
+
+Create a `.env` file in the root directory:
+
+```env
 PORT_CLIENT_ID=your_client_id
 PORT_CLIENT_SECRET=your_client_secret
+
 ```
 
-You can copy `.env.example` to `.env` and fill in your credentials.
+## 🏗️ Development & Deployment
 
-## Development
-
-Build the project:
+1. **Build the project:**
 ```bash
 npm run build
+
 ```
 
-Watch mode (auto-rebuild on changes):
-```bash
-npm run dev
-```
 
-Run the compiled code:
+2. **Start the server:**
 ```bash
 npm start
+
 ```
 
-Clean build artifacts:
+
+*The server will run on `http://localhost:3000/mcp`.*
+3. **Expose to Port.io (via ngrok):**
 ```bash
-npm run clean
+ngrok http 3000
+
 ```
 
-## Project Structure
+
+*Copy the `https` URL provided by ngrok (e.g., `https://xxxx.ngrok-free.app/mcp`).*
+
+## 🔌 Connectivity Configuration
+
+To allow Port AI to communicate with this server, the following configurations are required in the Port.io UI:
+
+### Port.io MCP Entity Setup
+
+When registering the MCP Server entity in Port, ensure the following **Headers** are added:
+
+```json
+{
+  "ngrok-skip-browser-warning": "true"
+}
+
+```
+
+### AI Agent Configuration
+
+Ensure your AI Agent entity has the following **Tools** regex pattern allowed:
+
+```text
+^my_local_mcp_.*
+
+```
+
+## 📂 Project Structure (Updated)
 
 ```
 port-assignment/
-├── .env                    # Environment variables (PORT_CLIENT_ID, PORT_CLIENT_SECRET)
-├── .gitignore              # Git ignore rules (excludes .env and node_modules)
-├── package.json            # Project dependencies and scripts
-├── tsconfig.json           # TypeScript configuration
-├── README.md               # Project documentation
-│
-├── /src
-│   ├── index.ts            # Main entry point - MCP server setup and skill registration
-│   ├── port-api.ts         # Port API client functions (authentication, API calls)
-│   ├── types.ts            # TypeScript interfaces for Port data structures
-│   │
+├── .env                    # Environment variables
+├── package.json            # Scripts: build, dev, start
+├── src/
+│   ├── index.ts            # Main entry point - Express server & HTTP Transport setup
+│   ├── port-api.ts         # Port API client (Auth & Data fetching)
+│   ├── types.ts            # TypeScript interfaces
 │   └── /skills
-│       ├── index.ts        # Skills aggregator - exports all available skills
-│       ├── types.ts        # Skill interface definitions
-│       ├── blueprints.ts   # Blueprint-related skills
-│       └── entities.ts     # Entity-related skills (placeholder for future implementation)
-│
-└── /dist                   # Compiled JavaScript output (generated)
+│       ├── index.ts        # Skills aggregator
+│       └── blueprints.ts   # inspect_port_data_model implementation
+└── /dist                   # Compiled output
+
 ```
 
-## Architecture
+## ⚙️ Architecture Changes
 
-### Core Components
+### 1. Streamable HTTP Transport
 
-- **index.ts**: 
-  - Main entry point that initializes the MCP server
-  - Registers all available skills as MCP tools
-  - Sets up stdio transport for MCP communication
+We replaced the default `stdio` transport with `StreamableHTTPServerTransport`. This enables:
 
-- **port-api.ts**: 
-  - `getAccessToken()`: Authenticates with Port API using client credentials
-  - `getBlueprints()`: Fetches all blueprints from Port catalog
-  - Handles API authentication and HTTP requests
+* **Multiple Sessions**: Uses `randomUUID` to handle different AI conversations simultaneously.
+* **REST Endpoints**: Implements `POST`, `GET`, and `DELETE` handlers for full MCP protocol support.
 
-- **types.ts**: 
-  - `PortBlueprint`: Interface for blueprint data structure
-  - `PortEntity`: Interface for entity data structure
+### 2. CORS & Header Exposure
 
-### Skills Architecture
+Configured Express middleware to expose `mcp-session-id`. This allows the Port.io frontend to track the session state across multiple requests.
 
-The project uses a modular skills-based architecture where each skill is a self-contained MCP tool:
+### 3. Debugging & Health
 
-#### Skills Module (`/src/skills/`)
+Added specialized endpoints for troubleshooting:
 
-- **index.ts**: 
-  - Aggregates all skills from different modules
-  - Exports `allSkills` array for registration
+* `/health`: Verifies tool registration.
+* `/test-tools`: Simulates a tool listing request.
 
-- **types.ts**: 
-  - Defines the `Skill` interface that all skills must implement
-  - Ensures consistent skill structure across the codebase
-
-- **blueprints.ts**: 
-  - `inspect_port_data_model`: Fetches and returns all blueprints from Port
-  - Helps AI assistants understand the user's infrastructure data model
-
-- **entities.ts**: 
-  - Currently contains placeholder structure for entity-related skills
-  - Ready for future implementation of entity manipulation skills
-
-### Current Implementation Status
-
-✅ **Completed:**
-- MCP server setup and configuration
-- Port API authentication (client credentials flow)
-- Blueprint fetching functionality
-- `inspect_port_data_model` skill implementation
-- Modular skills architecture
-- TypeScript type definitions
-
-🚧 **In Progress / Planned:**
-- Entity-related skills (create, update, delete entities)
-- Additional blueprint operations
-- Error handling and validation
-- More comprehensive Port API integration
-
-## How It Works
-
-1. **Server Initialization**: The MCP server starts and registers all available skills as tools
-2. **Skill Registration**: Each skill in the `/src/skills` directory is registered as an MCP tool
-3. **API Integration**: Skills can call Port API functions through `port-api.ts` to interact with Port.io
-4. **Tool Execution**: When an AI assistant calls a skill, it executes the handler function and returns results
-
-## Skills
+## 🛠️ Skills
 
 ### Available Skills
 
-- **inspect_port_data_model**: Fetches current blueprints to understand the user's infrastructure data model
+* **inspect_port_data_model**: Fetches current blueprints to analyze the infrastructure data model.
+* *Fix implemented: Uses synchronous `safeParse` for high-reliability schema validation.*
 
-### Skill Structure
-
-Each skill follows this structure:
-```typescript
-{
-  name: "skill_name",
-  description: "What the skill does",
-  inputSchema: {}, // JSON schema for input parameters
-  handler: async (args) => {
-    // Skill implementation
-    return { content: [{ type: "text", text: "result" }] };
-  }
-}
 ```
-
-## License
-
-ISC
