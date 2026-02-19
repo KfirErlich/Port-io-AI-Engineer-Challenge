@@ -16,6 +16,7 @@ import { getAllScorecardsSkill } from "./Governance/get-all-scorecards.js";
 import { manageSelfServiceActionSkill } from "./Actions/manage-self-service-action.js";
 import { createPageSkill } from "./Widgets/create-page.js";
 import { addWidgetToPageSkill } from "./Widgets/add-widget-to-page.js";
+import { getPageSkill } from "./Widgets/get-page.js";
 
 export const allSkills = [
   inspectPortDataModel,
@@ -35,4 +36,5 @@ export const allSkills = [
   manageSelfServiceActionSkill,
   createPageSkill,
   addWidgetToPageSkill,
+  getPageSkill,
 ];

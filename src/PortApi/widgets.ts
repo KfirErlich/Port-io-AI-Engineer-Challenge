@@ -4,92 +4,48 @@ import { getAccessToken } from "./auth.js";
 
 const PORT_API_URL = "https://api.getport.io/v1";
 
+/** Widget type constant required by Port API for this endpoint. */
+const WIDGET_TYPE_AI_AGENT = "ai-agent";
+
 /**
- * Add a widget to a page with dynamic data mapping
- * Maps the 'data' field from widgetConfig into the correct Port API fields based on widget type
+ * Add a widget to a page under a parent layout container.
+ * Request body: { parentWidgetId, widget } where widget has exactly: id, updatedAt, updatedBy, createdAt, createdBy, type, title, description, agentIdentifier, icon, useMCP.
+ * Port API requires widget.type to be the constant "ai-agent".
  */
 export async function addWidgetToPage(
   pageIdentifier: string,
+  parentWidgetId: string,
   widgetConfig: {
-    type: string;
+    type?: string;
     title: string;
-    data?: any; // Contains widget-specific configuration (dataset, query, etc.)
+    description?: string;
+    agentIdentifier?: string;
+    icon?: string;
+    useMCP?: boolean;
   }
 ): Promise<{ success: boolean; widget?: any; error?: any }> {
   try {
     const token = await getAccessToken();
-    
-    // Build the widget payload based on type
-    let requestBody: any = {
-      type: widgetConfig.type,
+
+    const widget = {
+      id: "",
+      updatedAt: "",
+      updatedBy: "",
+      createdAt: "",
+      createdBy: "",
+      type: WIDGET_TYPE_AI_AGENT,
       title: widgetConfig.title,
+      description: widgetConfig.description ?? "",
+      agentIdentifier: widgetConfig.agentIdentifier ?? "",
+      icon: widgetConfig.icon ?? "",
+      useMCP: widgetConfig.useMCP ?? false,
     };
-    
-    // Map the 'data' field into the correct Port API structure based on widget type
-    if (widgetConfig.data) {
-      // For table widgets (table-entities-explorer), data contains dataset/query
-      if (widgetConfig.type === "table-entities-explorer" || widgetConfig.type.includes("table")) {
-        if (widgetConfig.data.dataset) {
-          requestBody.dataset = widgetConfig.data.dataset;
-        }
-        if (widgetConfig.data.query) {
-          requestBody.query = widgetConfig.data.query;
-        }
-        // Copy other table-specific properties
-        Object.keys(widgetConfig.data).forEach(key => {
-          if (key !== "dataset" && key !== "query") {
-            requestBody[key] = widgetConfig.data[key];
-          }
-        });
-      }
-      // For chart widgets (pie-chart, bar-chart, etc.), data contains dataset and property
-      else if (widgetConfig.type.includes("chart") || widgetConfig.type.includes("pie") || widgetConfig.type.includes("bar")) {
-        if (widgetConfig.data.dataset) {
-          requestBody.dataset = widgetConfig.data.dataset;
-        }
-        if (widgetConfig.data.property) {
-          requestBody.property = widgetConfig.data.property;
-        }
-        // Copy other chart-specific properties
-        Object.keys(widgetConfig.data).forEach(key => {
-          if (key !== "dataset" && key !== "property") {
-            requestBody[key] = widgetConfig.data[key];
-          }
-        });
-      }
-      // For scorecard widgets
-      else if (widgetConfig.type.includes("scorecard")) {
-        if (widgetConfig.data.blueprint) {
-          requestBody.blueprint = widgetConfig.data.blueprint;
-        }
-        if (widgetConfig.data.scorecard) {
-          requestBody.scorecard = widgetConfig.data.scorecard;
-        }
-        // Copy other scorecard-specific properties
-        Object.keys(widgetConfig.data).forEach(key => {
-          if (key !== "blueprint" && key !== "scorecard") {
-            requestBody[key] = widgetConfig.data[key];
-          }
-        });
-      }
-      // For markdown widgets
-      else if (widgetConfig.type === "markdown") {
-        if (widgetConfig.data.content) {
-          requestBody.content = widgetConfig.data.content;
-        }
-        // Copy other markdown-specific properties
-        Object.keys(widgetConfig.data).forEach(key => {
-          if (key !== "content") {
-            requestBody[key] = widgetConfig.data[key];
-          }
-        });
-      }
-      // For other widget types, merge all data properties
-      else {
-        Object.assign(requestBody, widgetConfig.data);
-      }
-    }
-    
+
+    const requestBody = {
+      parentWidgetId,
+      widget,
+    };
+
     const response = await axios.post(
       `${PORT_API_URL}/pages/${pageIdentifier}/widgets`,
       requestBody,

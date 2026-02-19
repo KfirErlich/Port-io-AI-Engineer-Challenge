@@ -10,11 +10,30 @@ const inputSchema = z.object({
   icon: z.string().optional(),
   type: z.enum(["dashboard", "blueprint-entities"]),
   description: z.string().optional(),
+  widgets: z
+    .array(
+      z.object({
+        type: z.string(),
+        title: z.string(),
+        markdown: z.string().optional(),
+        blueprint: z.string().optional(),
+        property: z.string().optional(),
+        layout: z
+          .object({
+            x: z.number(),
+            y: z.number(),
+            w: z.number(),
+            h: z.number(),
+          })
+          .optional(),
+      })
+    )
+    .optional(),
 });
 
 function validateCreatePageArgs(
   args: unknown
-): { ok: true; pageData: { identifier: string; title: string; icon?: string; type: "dashboard" | "blueprint-entities"; description?: string } } | { ok: false; message: string } {
+): { ok: true; pageData: { identifier: string; title: string; icon?: string; type: "dashboard" | "blueprint-entities"; description?: string; widgets?: Array<{ type: string; title: string; markdown?: string; blueprint?: string; property?: string; layout?: { x: number; y: number; w: number; h: number } }> } } | { ok: false; message: string } {
   try {
     const result = inputSchema.parse(args);
     return {
@@ -25,6 +44,7 @@ function validateCreatePageArgs(
         icon: result.icon,
         type: result.type,
         description: result.description,
+        widgets: result.widgets,
       },
     };
   } catch (error) {
@@ -49,7 +69,7 @@ function validateCreatePageArgs(
 export const createPageSkill = {
   name: "create_page",
   description:
-    "Creates a new dashboard or blueprint-entities page in Port. This is the first step in building a dashboard - create the page container, then add widgets to it using 'add_widget_to_page'. INPUT: object with 'identifier' (string, page identifier), 'title' (string, page title), 'type' (enum: 'dashboard' or 'blueprint-entities', usually 'dashboard'), 'icon' (string, optional), and 'description' (string, optional). Widgets should be added separately using 'add_widget_to_page' after the page is created.",
+    "Creates a new dashboard or blueprint-entities page in Port. Dashboard pages are created with an initial markdown welcome widget that includes a layout (x, y, w, h) so the React UI renders correctly. Optionally pass 'widgets' (array of objects with type, title, markdown, blueprint, property, layout {x,y,w,h}). INPUT: object with 'identifier' (string), 'title' (string), 'type' (enum: 'dashboard' or 'blueprint-entities'), 'icon' (string, optional), 'description' (string, optional), and 'widgets' (array of widget configs, optional).",
   inputSchema,
   handler: async (args: unknown): Promise<CallToolResult> => {
     try {
@@ -72,7 +92,7 @@ export const createPageSkill = {
           content: [
             {
               type: "text" as const,
-              text: `Successfully created page '${pageData.identifier}' (${pageData.type}).\n\nPage details:\n${JSON.stringify(result.page, null, 2)}\n\nYou can now use 'add_widget_to_page' to add widgets to this page.`,
+              text: `Successfully created page '${pageData.identifier}' (${pageData.type}).\n\nPage details:\n${JSON.stringify(result.page, null, 2)}\n\n${pageData.type === "dashboard" ? "The page includes an initial welcome widget with layout. " : ""}You can use 'add_widget_to_page' to add more widgets.`,
             },
           ],
         };

@@ -5,6 +5,20 @@ import { getAccessToken } from "./auth.js";
 const PORT_API_URL = "https://api.getport.io/v1";
 
 /**
+ * Get a page by identifier (full response including widgets array for layout container ids).
+ */
+export async function getPage(identifier: string): Promise<any> {
+  const token = await getAccessToken();
+  const response = await axios.get(
+    `${PORT_API_URL}/pages/${identifier}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+    }
+  );
+  return response.data.page ?? response.data;
+}
+
+/**
  * Create a new page (dashboard or blueprint-entities page)
  */
 export async function createPage(
@@ -20,13 +34,26 @@ export async function createPage(
     const token = await getAccessToken();
     
     // Build request body
-    // Per API schema: widgets must be an array (can be empty), never null or undefined
-    // Port's UI crashes if widgets is null/undefined, so we always send an empty array
+    // Per API schema: widgets must be an array (can be empty), never null or undefined.
+    // Port requires a layout object (x, y, w, h) for each widget so the React UI can render without "type of undefined" errors.
+    const defaultDashboardWidgets =
+      pageData.type === "dashboard"
+        ? [
+            {
+              type: "markdown",
+              title: "Welcome to Governance",
+              markdown:
+                "## 🎯 Goal\nEnsure all services reach **Gold** level.",
+              layout: { x: 0, y: 0, w: 12, h: 4 },
+            },
+          ]
+        : [];
+
     const requestBody: any = {
       identifier: pageData.identifier,
       title: pageData.title,
       type: pageData.type,
-      widgets: [], // Always send empty array - required by Port API and prevents UI crashes
+      widgets: defaultDashboardWidgets,
     };
     
     if (pageData.icon) {
