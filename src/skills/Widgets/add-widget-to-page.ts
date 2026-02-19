@@ -3,37 +3,33 @@ import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z, ZodError } from "zod";
 import { addWidgetToPage } from "../../PortApi/widgets.js";
 
-/** Zod schema for MCP SDK validation */
+/** Zod schema for MCP SDK validation; widgetConfig allows extra type-specific fields (markdown, blueprint, dataset, etc.) */
 const inputSchema = z.object({
   pageIdentifier: z.string().min(1, "page identifier is required"),
   parentWidgetId: z.string().min(1, "parentWidgetId is required"),
-  widgetConfig: z.object({
-    type: z.string().min(1, "widget type is required"),
-    title: z.string().min(1, "widget title is required"),
-    description: z.string().optional(),
-    agentIdentifier: z.string().optional(),
-    icon: z.string().optional(),
-    useMCP: z.boolean().optional(),
-  }),
+  widgetConfig: z
+    .object({
+      type: z.string().min(1, "widget type is required"),
+      title: z.string().min(1, "widget title is required"),
+      description: z.string().optional(),
+      agentIdentifier: z.string().optional(),
+      icon: z.string().optional(),
+      useMCP: z.boolean().optional(),
+      // entities-pie-chart: blueprint (e.g. 'service') and property (Breakdown by property, e.g. 'production_readiness')
+    })
+    .passthrough(),
 });
 
 function validateAddWidgetToPageArgs(
   args: unknown
-): { ok: true; pageIdentifier: string; parentWidgetId: string; widgetConfig: { type: string; title: string; description?: string; agentIdentifier?: string; icon?: string; useMCP?: boolean } } | { ok: false; message: string } {
+): { ok: true; pageIdentifier: string; parentWidgetId: string; widgetConfig: Record<string, unknown> } | { ok: false; message: string } {
   try {
     const result = inputSchema.parse(args);
     return {
       ok: true,
       pageIdentifier: result.pageIdentifier,
       parentWidgetId: result.parentWidgetId,
-      widgetConfig: {
-        type: result.widgetConfig.type,
-        title: result.widgetConfig.title,
-        description: result.widgetConfig.description,
-        agentIdentifier: result.widgetConfig.agentIdentifier,
-        icon: result.widgetConfig.icon,
-        useMCP: result.widgetConfig.useMCP,
-      },
+      widgetConfig: result.widgetConfig as Record<string, unknown>,
     };
   } catch (error) {
     if (error instanceof ZodError) {
@@ -51,14 +47,13 @@ function validateAddWidgetToPageArgs(
 
 /**
  * Skill: Add Widget to Page
- * Adds a specific widget to an existing Port page (dashboard or blueprint-entities page).
- * The widget configuration's 'data' field is automatically mapped to the correct Port API fields
- * based on the widget type (e.g., dataset for tables, property for charts).
+ * Adds a widget to an existing Port page. The parent must be a dashboard-widget (e.g. the rootWidgetId returned by create_page or get_page for dashboards).
+ * Supports any Port widget type. Use the exact type names the API expects (e.g. entities-pie-chart for pie charts, not "pie-chart").
  */
 export const addWidgetToPageSkill = {
   name: "add_widget_to_page",
   description:
-    "Adds a widget to a Port page. INPUT: pageIdentifier, parentWidgetId, widgetConfig with type (string), title (string), and optional description, agentIdentifier (string), icon (string), useMCP (boolean). Sends only: parentWidgetId and widget (id, updatedAt, updatedBy, createdAt, createdBy, type, title, description, agentIdentifier, icon, useMCP).",
+    "Adds a widget to a Port page. Parent must be a dashboard-widget (use rootWidgetId from create_page or get_page). INPUT: pageIdentifier, parentWidgetId, widgetConfig with type (string), title (string), and type-specific fields. Widget types: 'ai-agent' (agentIdentifier, useMCP); 'markdown' (markdown); 'table-entities-explorer' (blueprint, dataset); 'entities-pie-chart' for pie charts (required: blueprint, production_readiness). Use type 'entities-pie-chart' for pie charts; do not use 'pie-chart'. Optional on all: description, icon.",
   inputSchema,
   handler: async (args: unknown): Promise<CallToolResult> => {
     try {
@@ -74,7 +69,11 @@ export const addWidgetToPageSkill = {
 
       console.error(`[TOOL] add_widget_to_page called: pageIdentifier=${pageIdentifier}, parentWidgetId=${parentWidgetId}, widgetType=${widgetConfig.type}, title=${widgetConfig.title}`);
 
-      const result = await addWidgetToPage(pageIdentifier, parentWidgetId, widgetConfig);
+      const result = await addWidgetToPage(pageIdentifier, parentWidgetId, {
+        type: widgetConfig.type as string,
+        title: widgetConfig.title as string,
+        ...widgetConfig,
+      });
 
       if (result.success) {
         return {

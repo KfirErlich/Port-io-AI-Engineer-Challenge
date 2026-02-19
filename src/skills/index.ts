@@ -9,6 +9,7 @@ import { triggerResyncSkill } from "./Connectivity/trigger-resync.js";
 import { getIntegrationDefinitionSkill } from "./Catalog/get-integration-definition.js";
 import { searchEntitiesSkill } from "./Catalog/search-entities.js";
 import { getEntitySkill } from "./Catalog/get-entity.js";
+import { upsertEntitySkill } from "./Catalog/upsert-entity.js";
 import { createScorecardSkill } from "./Governance/create-scorecard.js";
 import { updateScorecardSkill } from "./Governance/update-scorecard.js";
 import { deleteScorecardSkill } from "./Governance/delete-scorecard.js";
@@ -17,6 +18,7 @@ import { manageSelfServiceActionSkill } from "./Actions/manage-self-service-acti
 import { createPageSkill } from "./Widgets/create-page.js";
 import { addWidgetToPageSkill } from "./Widgets/add-widget-to-page.js";
 import { getPageSkill } from "./Widgets/get-page.js";
+import { listPagesSkill } from "./Widgets/list-pages.js";
 
 export const allSkills = [
   inspectPortDataModel,
@@ -29,6 +31,7 @@ export const allSkills = [
   getIntegrationDefinitionSkill,
   searchEntitiesSkill,
   getEntitySkill,
+  upsertEntitySkill,
   createScorecardSkill,
   updateScorecardSkill,
   deleteScorecardSkill,
@@ -37,4 +40,5 @@ export const allSkills = [
   createPageSkill,
   addWidgetToPageSkill,
   getPageSkill,
+  listPagesSkill,
 ];

@@ -64,12 +64,12 @@ function validateCreatePageArgs(
 /**
  * Skill: Create Page
  * Creates a new dashboard or blueprint-entities page in Port.
- * This is the first step in building a dashboard - create the page container, then add widgets.
+ * For dashboards, also creates a root dashboard-widget container so the page is ready for add_widget_to_page.
  */
 export const createPageSkill = {
   name: "create_page",
   description:
-    "Creates a new dashboard or blueprint-entities page in Port. Dashboard pages are created with an initial markdown welcome widget that includes a layout (x, y, w, h) so the React UI renders correctly. Optionally pass 'widgets' (array of objects with type, title, markdown, blueprint, property, layout {x,y,w,h}). INPUT: object with 'identifier' (string), 'title' (string), 'type' (enum: 'dashboard' or 'blueprint-entities'), 'icon' (string, optional), 'description' (string, optional), and 'widgets' (array of widget configs, optional).",
+    "Creates a new dashboard or blueprint-entities page in Port. For dashboards, creates the page then a root dashboard-widget container so the page is ready to accept widgets. Returns rootWidgetId for dashboards—use it as parentWidgetId when calling add_widget_to_page. INPUT: object with 'identifier' (string), 'title' (string), 'type' (enum: 'dashboard' or 'blueprint-entities'), 'icon' (string, optional), 'description' (string, optional).",
   inputSchema,
   handler: async (args: unknown): Promise<CallToolResult> => {
     try {
@@ -88,11 +88,15 @@ export const createPageSkill = {
       const result = await createPage(pageData);
 
       if (result.success) {
+        const rootMsg =
+          pageData.type === "dashboard" && result.rootWidgetId
+            ? `\n\nRoot widget ID (use as parentWidgetId when adding widgets): ${result.rootWidgetId}`
+            : "";
         return {
           content: [
             {
               type: "text" as const,
-              text: `Successfully created page '${pageData.identifier}' (${pageData.type}).\n\nPage details:\n${JSON.stringify(result.page, null, 2)}\n\n${pageData.type === "dashboard" ? "The page includes an initial welcome widget with layout. " : ""}You can use 'add_widget_to_page' to add more widgets.`,
+              text: `Successfully created page '${pageData.identifier}' (${pageData.type}).\n\nPage details:\n${JSON.stringify(result.page, null, 2)}${rootMsg}\n\nYou can use 'add_widget_to_page' with this page and (for dashboards) the rootWidgetId above as parentWidgetId to add widgets.`,
             },
           ],
         };
