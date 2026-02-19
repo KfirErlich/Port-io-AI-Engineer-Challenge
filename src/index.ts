@@ -29,12 +29,11 @@ function createServer() {
   allSkills.forEach((skill) => {
     console.error(`[MCP]   - ${skill.name}: ${skill.description}`);
     try {
-      // Only include inputSchema if it's defined and not null/undefined
-      // Omitting inputSchema uses SDK default empty schema, avoiding validation bug
+      // Pass Zod schema if available (MCP SDK expects Zod schema with safeParseAsync method)
       const toolDef: any = {
         description: skill.description,
       };
-      if ('inputSchema' in skill && skill.inputSchema !== undefined && skill.inputSchema !== null) {
+      if (skill.inputSchema) {
         toolDef.inputSchema = skill.inputSchema;
       }
       s.registerTool(skill.name, toolDef, skill.handler);
@@ -49,6 +48,8 @@ function createServer() {
 
 /** Map of session ID -> transport for per-session handling (required for Port reconnects) */
 const transports: Record<string, StreamableHTTPServerTransport> = {};
+/** Map of session ID -> server instance for per-session handling */
+const servers: Record<string, McpServer> = {};
 
 function isInitializeRequest(body: unknown): boolean {
   return typeof body === "object" && body !== null && (body as { method?: string }).method === "initialize";
@@ -74,20 +75,26 @@ app.post("/mcp", async (req, res) => {
       transport = transports[sessionId];
     } else if (!sessionId && isInitializeRequest(body)) {
       let capturedSessionId: string | undefined;
+      const server = createServer();
       transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (sid) => {
           capturedSessionId = sid;
           transports[sid] = transport!;
+          servers[sid] = server; // Store server instance with session ID
           console.error(`[MCP] Session initialized with ID: ${sid}`);
         },
       });
       transport.onclose = () => {
-        if (capturedSessionId && transports[capturedSessionId]) {
-          delete transports[capturedSessionId];
+        if (capturedSessionId) {
+          if (transports[capturedSessionId]) {
+            delete transports[capturedSessionId];
+          }
+          if (servers[capturedSessionId]) {
+            delete servers[capturedSessionId];
+          }
         }
       };
-      const server = createServer();
       await server.connect(transport);
       
       // Wrap response to log headers
@@ -103,7 +110,10 @@ app.post("/mcp", async (req, res) => {
       // Note: session ID is set in response headers by transport.handleRequest
       // The onsessioninitialized callback will log when it's ready
       return;
-    } else {
+    }
+    
+    // If we don't have a valid transport at this point, reject the request
+    if (!transport) {
       // Log what we received for debugging
       console.error(`[MCP] Rejected request - sessionId: ${sessionId || 'none'}, method: ${body?.method || 'unknown'}`);
       console.error(`[MCP] Available sessions: ${Object.keys(transports).join(', ') || 'none'}`);
@@ -117,6 +127,7 @@ app.post("/mcp", async (req, res) => {
       });
       return;
     }
+    
     // Handle subsequent requests with existing session
     // Log tools/list and tools/call requests/responses
     if (body?.method === 'tools/list') {
@@ -141,7 +152,7 @@ app.post("/mcp", async (req, res) => {
         return originalJson(data);
       };
     }
-    await transport!.handleRequest(req, res, body);
+    await transport.handleRequest(req, res, body);
   } catch (error) {
     console.error("[MCP] POST Error:", error);
     console.error("[MCP] Error details:", error instanceof Error ? error.message : String(error));
@@ -175,6 +186,9 @@ app.delete("/mcp", async (req, res) => {
   try {
     await transports[sessionId].handleRequest(req, res);
     delete transports[sessionId];
+    if (servers[sessionId]) {
+      delete servers[sessionId];
+    }
   } catch (error) {
     console.error("[MCP] DELETE Error:", error);
     if (!res.headersSent) res.status(500).send("Internal Server Error");
