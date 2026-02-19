@@ -1,7 +1,7 @@
 // Skills related to blueprints
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { getBlueprints } from "../port-api.js";
+import { getBlueprints } from "../../PortApi/index.js";
 
 /** Zod schema for MCP SDK validation - no inputs required */
 const inputSchema = z.object({});

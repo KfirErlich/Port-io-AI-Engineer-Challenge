@@ -1,12 +1,12 @@
 // Orchestrator skill for applying Production Readiness template
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { getBlueprint, upsertBlueprint } from "../port-api.js";
+import { getBlueprint, upsertBlueprint } from "../../PortApi/index.js";
 import {
   SERVICE_BLUEPRINT,
   ENVIRONMENT_BLUEPRINT,
   templateToPortFormat,
-} from "../templates/blueprints.js";
+} from "../../templates/blueprints.js";
 
 /** Zod schema for MCP SDK validation */
 const inputSchema = z.object({

@@ -1,10 +1,7 @@
 // Skill for setting up catalog relations between blueprints
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
-import { getBlueprint, getAccessToken } from "../port-api.js";
-import axios, { AxiosError } from "axios";
-
-const PORT_API_URL = "https://api.port.io/v1";
+import { getBlueprint, updateBlueprintRelations } from "../../PortApi/index.js";
 
 /** Zod schema for MCP SDK validation */
 const inputSchema = z.object({
@@ -98,23 +95,23 @@ export const setupCatalogRelationsSkill = {
         [relationName]: relationObject,
       };
 
-      // Step 4: Prepare PATCH payload (only update relations)
-      const patchPayload = {
-        relations: updatedRelations,
-      };
-
-      // Step 5: Execute PATCH request
-      const token = await getAccessToken();
+      // Step 4: Execute PATCH request to update relations
       try {
-        const response = await axios.patch(
-          `${PORT_API_URL}/blueprints/${sourceBlueprint}`,
-          patchPayload,
-          {
-            headers: { Authorization: `Bearer ${token}` },
-          }
-        );
+        const result = await updateBlueprintRelations(sourceBlueprint, updatedRelations);
 
-        const updatedBlueprint = response.data.blueprint;
+        if (!result.success) {
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Failed to add relation '${relationName}' to blueprint '${sourceBlueprint}': ${JSON.stringify(result.error)}`,
+              },
+            ],
+            isError: true,
+          };
+        }
+
+        const updatedBlueprint = result.blueprint!;
 
         return {
           content: [
@@ -132,33 +129,18 @@ export const setupCatalogRelationsSkill = {
           ],
         };
       } catch (error) {
-        if (axios.isAxiosError(error)) {
-          const axiosError = error as AxiosError;
-          const errorDetails = axiosError.response?.data || axiosError.message;
-          console.error(`[Port API] Error updating blueprint '${sourceBlueprint}':`, errorDetails);
-          
-          let errorMessage = `Failed to add relation '${relationName}' to blueprint '${sourceBlueprint}'`;
-          if (axiosError.response?.status === 400) {
-            errorMessage += `: Validation error - ${JSON.stringify(errorDetails)}`;
-          } else if (axiosError.response?.status === 404) {
-            errorMessage += `: Blueprint not found`;
-          } else if (axiosError.response?.status === 409) {
-            errorMessage += `: Conflict - ${JSON.stringify(errorDetails)}`;
-          } else {
-            errorMessage += `: ${JSON.stringify(errorDetails)}`;
-          }
-
-          return {
-            content: [
-              {
-                type: "text" as const,
-                text: errorMessage,
-              },
-            ],
-            isError: true,
-          };
-        }
-        throw error;
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        console.error(`[Port API] Error updating blueprint '${sourceBlueprint}':`, errorMessage);
+        
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Failed to add relation '${relationName}' to blueprint '${sourceBlueprint}': ${errorMessage}`,
+            },
+          ],
+          isError: true,
+        };
       }
     } catch (error) {
       console.error(`[TOOL] Error in setup_catalog_relations:`, error);

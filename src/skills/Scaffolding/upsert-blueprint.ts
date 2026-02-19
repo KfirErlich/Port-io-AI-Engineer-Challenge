@@ -1,7 +1,7 @@
 // Atomic skill for creating or updating a single blueprint
 import { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z, ZodError } from "zod";
-import { upsertBlueprint } from "../port-api.js";
+import { upsertBlueprint } from "../../PortApi/index.js";
 
 /** Zod schema for MCP SDK validation */
 const inputSchema = z.object({
