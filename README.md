@@ -9,6 +9,8 @@ Node.js TypeScript project for Port.io integration with MCP server capabilities.
 - **ngrok Compatibility**: Pre-configured to bypass browser warnings
 - **Enhanced Logging**: Real-time terminal feedback for tool discovery and execution
 - **Blueprint Management**: Complete CRUD operations for Port blueprints
+- **Integration Management**: Full lifecycle management of Port integrations (create, update, configure, health checks, resync)
+- **Entity Management**: Search and retrieve entities from the Port catalog
 - **Production Readiness Templates**: Pre-built templates for Service and Environment blueprints
 - **Type Safety**: Full TypeScript support with Zod schema validation
 - **Error Handling**: Comprehensive error handling with detailed error messages
@@ -95,15 +97,28 @@ port-assignment/
 ├── package.json            # Scripts: build, dev, start
 ├── src/
 │   ├── index.ts            # Main entry point - Express server & HTTP Transport setup
-│   ├── port-api.ts         # Port API client (Auth & Blueprint operations)
 │   ├── types.ts            # TypeScript interfaces
+│   ├── /PortApi            # Port API client modules
+│   │   ├── index.ts        # Exports all API functions
+│   │   ├── auth.ts         # OAuth2 authentication
+│   │   ├── blueprints.ts   # Blueprint CRUD operations
+│   │   ├── integrations.ts # Integration management (create, update, resync, health)
+│   │   └── entities.ts     # Entity search and retrieval
 │   ├── /skills
 │   │   ├── index.ts        # Skills aggregator (exports allSkills)
-│   │   ├── inspect-blueprints.ts   # inspect_port_data_model skill
-│   │   ├── upsert-blueprint.ts     # upsert_blueprint skill
-│   │   ├── apply-production-readiness.ts  # apply_production_readiness_template skill
-│   │   ├── setup-catalog-relations.ts  # setup_catalog_relations skill
-│   │   └── entities.ts     # Placeholder for entity-related skills
+│   │   ├── /Scaffolding    # Catalog scaffolding skills
+│   │   │   ├── inspect-blueprints.ts      # inspect_port_data_model
+│   │   │   ├── upsert-blueprint.ts        # upsert_blueprint
+│   │   │   ├── apply-production-readiness.ts  # apply_production_readiness_template
+│   │   │   └── setup-catalog-relations.ts # setup_catalog_relations
+│   │   ├── /Connectivity   # Integration management skills
+│   │   │   ├── check-integration-health.ts    # check_integration_health
+│   │   │   ├── configure-integration.ts       # configure_integration
+│   │   │   └── trigger-resync.ts             # trigger_resync (PATCH-based)
+│   │   └── /Catalog        # Entity catalog skills
+│   │       ├── get-integration-definition.ts  # get_integration_definition
+│   │       ├── search-entities.ts             # search_entities
+│   │       └── get-entity.ts                  # get_entity
 │   └── /templates
 │       └── blueprints.ts   # Production Readiness blueprint templates
 └── /dist                   # Compiled output
@@ -132,12 +147,29 @@ Configured Express middleware to expose `mcp-session-id`. This allows the Port.i
 
 ### 4. Port API Integration
 
-The `port-api.ts` module provides:
+The Port API modules (`src/PortApi/`) provide comprehensive access to Port.io's API:
 
-* **Authentication**: OAuth2 client credentials flow for Port API access
-* **Blueprint Operations**: `getBlueprints()`, `getBlueprint()`, `upsertBlueprint()`
-* **Error Handling**: Comprehensive error handling with detailed error messages
-* **Upsert Logic**: Automatically detects if a blueprint exists and creates or updates accordingly
+**Authentication (`auth.ts`)**:
+* OAuth2 client credentials flow for Port API access
+* Automatic token management and refresh
+
+**Blueprint Operations (`blueprints.ts`)**:
+* `getBlueprints()`: Retrieve all blueprints
+* `getBlueprint()`: Get a specific blueprint by identifier
+* `upsertBlueprint()`: Create or update a blueprint (automatically detects existence)
+
+**Integration Operations (`integrations.ts`)**:
+* `getIntegrations()`: List all installed integrations
+* `createIntegration()`: Install a new integration with mapping configuration
+* `updateIntegration()`: Update an existing integration's mapping
+* `triggerResync()`: Trigger a resync by "touching" integration configuration (uses PATCH)
+* `getIntegrationDefinition()`: Retrieve full integration configuration including mappings
+
+**Entity Operations (`entities.ts`)**:
+* `searchEntities()`: Search entities across blueprints with query filters
+* `getEntity()`: Retrieve full details for a specific entity
+
+**Error Handling**: Comprehensive error handling with detailed error messages and logging
 
 ### 5. Skills Architecture
 
@@ -160,14 +192,16 @@ Added specialized endpoints for troubleshooting:
 
 ### Available Skills
 
-The MCP server provides four main skills for interacting with Port.io's Software Catalog:
+The MCP server provides **10 skills** organized into three categories:
 
-#### 1. **inspect_port_data_model**
+#### **Scaffolding Skills** (Catalog Setup & Management)
+
+1. **inspect_port_data_model**
 - **Description**: Inspect and retrieve complete Port data model information. Returns all blueprints with full schemas, properties, relations, and metadata. Essential for understanding the data model structure.
 - **Input**: No parameters required (call with empty object `{}`)
 - **Use Case**: Use when you need to understand the current catalog structure, schema details, or relationships between blueprints.
 
-#### 2. **upsert_blueprint**
+2. **upsert_blueprint**
 - **Description**: Create or update a single blueprint in Port. Use this for custom infrastructure design or specific modifications. Allows dynamic blueprint creation based on conversation context.
 - **Input**: Object with required key `blueprint` containing:
   - `identifier` (string, required): Unique blueprint identifier
@@ -195,7 +229,7 @@ The MCP server provides four main skills for interacting with Port.io's Software
   ```
 - **Use Case**: Use when creating custom blueprints or modifying existing ones with specific properties.
 
-#### 3. **apply_production_readiness_template**
+3. **apply_production_readiness_template**
 - **Description**: Strategic orchestrator that installs the core pillars for Production Readiness: Service, Environment, and Team blueprints, including their inter-relations. This is the recommended starting point for a governed software catalog.
 - **Input**: Optional object with:
   - `includeEnvironment` (boolean, default: `true`): Whether to create the Environment blueprint
@@ -206,7 +240,121 @@ The MCP server provides four main skills for interacting with Port.io's Software
   - **Team Relations**: Configures Service blueprint relations to Port's built-in `_team` blueprint.
 - **Use Case**: Use as the first step when setting up a new Port catalog or when you need a standardized Production Readiness foundation.
 
-#### 4. **setup_catalog_relations**
+4. **setup_catalog_relations**
+- **Description**: Add a relation to a blueprint that connects it to another blueprint. Use this to establish relationships between blueprints (e.g., Service -> Team, Service -> Environment). This skill uses PATCH to update the blueprint's relations object, preserving existing relations.
+- **Input**: Object with required fields:
+  - `sourceBlueprint` (string, required): The identifier of the blueprint where the relation starts
+  - `relationName` (string, required): The identifier for the relation (e.g., 'owner', 'environment', 'environment_test')
+  - `targetBlueprint` (string, required): The identifier of the blueprint it points to (e.g., '_team', 'environment')
+  - `many` (boolean, required): Whether this is a many-to-many or one-to-many relation (`true`) or one-to-one (`false`)
+  - `title` (string, optional): Human-readable title for the relation. If not provided, `relationName` will be used.
+  - `required` (boolean, optional): Whether the relation is required (default: `false`)
+- **Example**:
+  ```json
+  {
+    "sourceBlueprint": "service",
+    "relationName": "environment_test",
+    "targetBlueprint": "environment",
+    "many": true,
+    "title": "Test Environment",
+    "required": false
+  }
+  ```
+- **Use Case**: Use when you need to add or modify relations between existing blueprints. The skill preserves all existing relations and only adds or updates the specified relation.
+
+#### **Connectivity Skills** (Integration Management)
+
+5. **check_integration_health**
+- **Description**: Retrieves all installed integrations in Port and performs comprehensive health diagnostics. Checks installation status (Running), resync status (completed/failed), freshness (lastResyncEnd within 24h), and extracts error messages. Returns structured summary distinguishing Operational vs Degraded integrations.
+- **Input**: No parameters required (call with empty object `{}`)
+- **Use Case**: Use to monitor integration health, diagnose sync issues, or verify integration status after configuration changes.
+- **Output**: Categorized list of integrations with health status, error details, and operational status (Operational/Degraded).
+
+6. **configure_integration**
+- **Description**: Installs a new integration or updates the JQ mapping of an existing one. Supports both creation and updates of integration configurations.
+- **Input**: Object with required fields:
+  - `integrationType` (string, required): Type of integration (e.g., 'github', 'jira')
+  - `mapping` (object, required): JQ mapping configuration
+  - `isNew` (boolean, default: false): Set to `true` for new installations, `false` for updates
+  - `installationId` (string, optional): Required when `isNew=false` for updates
+- **Example**:
+  ```json
+  {
+    "integrationType": "github",
+    "mapping": {
+      "resources": [...]
+    },
+    "isNew": true
+  }
+  ```
+- **Use Case**: Use to install new integrations or update existing integration mappings.
+
+7. **trigger_resync**
+- **Description**: Triggers a manual data resynchronization for a specific integration by "touching" its configuration. Uses PATCH to update the integration metadata, which automatically triggers Port's resync mechanism. **Note**: This replaces the previous POST-based resync endpoint approach.
+- **Input**: Object with required field:
+  - `identifier` (string, required): The installation identifier
+- **Example**:
+  ```json
+  {
+    "identifier": "installation-123"
+  }
+  ```
+- **Technical Details**: 
+  - Uses `PATCH /v1/integration/{identifier}` endpoint
+  - Sends metadata update with timestamp: `{ metadata: { lastTriggered: ISO_DATE } }`
+  - Port automatically triggers resync when configuration is updated
+  - Enhanced error handling: Provides clear 404 error messages if installationId is incorrect
+- **Use Case**: Use to manually trigger a resync when data appears stale or after mapping changes.
+
+#### **Catalog Skills** (Entity Management)
+
+8. **get_integration_definition**
+- **Description**: Retrieves the full configuration JSON of a specific integration, including all mapping configurations. Essential for understanding how an integration is currently configured.
+- **Input**: Object with required field:
+  - `installationId` (string, required): The installation identifier
+- **Example**:
+  ```json
+  {
+    "installationId": "abc123"
+  }
+  ```
+- **Use Case**: Use to inspect integration configuration, verify mappings, or troubleshoot integration issues.
+
+9. **search_entities**
+- **Description**: Searches for entities within the Port catalog. Supports filtering by blueprint and custom query rules. Essential for verifying data flow and finding specific entities.
+- **Input**: Object with optional fields:
+  - `blueprint` (string, optional): Filter by specific blueprint identifier
+  - `query` (object, optional): Custom query with rules array. If not provided, defaults to empty object `{}` to return all entities for the blueprint.
+- **Example**:
+  ```json
+  {
+    "blueprint": "service",
+    "query": {
+      "rules": [
+        {
+          "property": "status",
+          "operator": "=",
+          "value": "active"
+        }
+      ]
+    }
+  }
+  ```
+- **Use Case**: Use to find entities matching specific criteria, verify data sync, or explore catalog contents.
+
+10. **get_entity**
+- **Description**: Retrieves full details for a single specific entity by blueprint and identifier. Returns complete entity data including properties, relations, and metadata.
+- **Input**: Object with required fields:
+  - `blueprint` (string, required): The blueprint identifier
+  - `identifier` (string, required): The entity identifier
+- **Example**:
+  ```json
+  {
+    "blueprint": "service",
+    "identifier": "my-service"
+  }
+  ```
+- **Use Case**: Use to get detailed information about a specific entity, verify entity properties, or inspect entity relationships.
 - **Description**: Add a relation to a blueprint that connects it to another blueprint. Use this to establish relationships between blueprints (e.g., Service -> Team, Service -> Environment). This skill uses PATCH to update the blueprint's relations object, preserving existing relations.
 - **Input**: Object with required fields:
   - `sourceBlueprint` (string, required): The identifier of the blueprint where the relation starts
@@ -316,3 +464,110 @@ Templates can be customized and extended using the `upsert_blueprint` skill.
   }
 }
 ```
+
+### Example 5: Check Integration Health
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "check_integration_health",
+    "arguments": {}
+  }
+}
+```
+
+### Example 6: Configure Integration
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "configure_integration",
+    "arguments": {
+      "integrationType": "github",
+      "mapping": {
+        "resources": [
+          {
+            "kind": "repo",
+            "port": {
+              "entity": {
+                "mappings": {
+                  "$identifier": ".name",
+                  "$title": ".name"
+                  }
+              }
+            }
+          }
+        ]
+      },
+      "isNew": true
+    }
+  }
+}
+```
+
+### Example 7: Trigger Integration Resync
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "trigger_resync",
+    "arguments": {
+      "identifier": "installation-123"
+    }
+  }
+}
+```
+
+### Example 8: Search Entities
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "search_entities",
+    "arguments": {
+      "blueprint": "service",
+      "query": {}
+    }
+  }
+}
+```
+
+### Example 9: Get Entity Details
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "get_entity",
+    "arguments": {
+      "blueprint": "service",
+      "identifier": "my-service"
+    }
+  }
+}
+```
+
+## 🔄 Recent Changes
+
+### Integration Resync Implementation Update
+
+**Changed**: The `trigger_resync` skill has been updated to use PATCH instead of POST.
+
+**Previous Implementation**:
+- Used `POST /v1/integration/{type}/{id}/resync` endpoint
+- Required both `integrationType` and `identifier` parameters
+
+**Current Implementation**:
+- Uses `PATCH /v1/integration/{identifier}` endpoint
+- Only requires `identifier` parameter
+- Sends metadata update: `{ metadata: { lastTriggered: ISO_DATE } }`
+- Port automatically triggers resync when integration configuration is updated
+- Enhanced error handling with specific 404 messages for incorrect installation IDs
+
+**Why**: The Port API for this integration type does not expose a standard POST resync endpoint. The PATCH approach "touches" the integration configuration, which triggers Port's automatic resync mechanism.
+
+**Migration**: Existing code using `trigger_resync` should remove the `integrationType` parameter and only pass `identifier`.

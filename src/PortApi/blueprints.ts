@@ -1,19 +1,9 @@
-// Helper functions for Port API calls
+// Blueprint API functions
 import axios, { AxiosError } from "axios";
-import { PortBlueprint } from "./types.js";
+import { PortBlueprint } from "../types.js";
+import { getAccessToken } from "./auth.js";
 
 const PORT_API_URL = "https://api.port.io/v1";
-
-/**
- * Get access token from Port API using client credentials
- */
-export async function getAccessToken(): Promise<string> {
-  const response = await axios.post(`${PORT_API_URL}/auth/access_token`, {
-    clientId: process.env.PORT_CLIENT_ID,
-    clientSecret: process.env.PORT_CLIENT_SECRET,
-  });
-  return response.data.accessToken;
-}
 
 /**
  * Fetch all existing blueprints from Port
@@ -154,5 +144,91 @@ export async function upsertBlueprint(
       message: `Unexpected error: ${errorMessage}`,
       error: errorMessage,
     };
+  }
+}
+
+/**
+ * Update blueprint relations
+ */
+export async function updateBlueprintRelations(
+  identifier: string,
+  relations: Record<string, any>
+): Promise<{ success: boolean; blueprint?: PortBlueprint; error?: any }> {
+  try {
+    const token = await getAccessToken();
+    const response = await axios.patch(
+      `${PORT_API_URL}/blueprints/${identifier}`,
+      { relations },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return {
+      success: true,
+      blueprint: response.data.blueprint,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      return {
+        success: false,
+        error: errorDetails,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Update blueprint schema properties
+ * Adds or updates properties in the blueprint schema
+ */
+export async function updateBlueprintSchemaProperties(
+  identifier: string,
+  properties: Record<string, any>
+): Promise<{ success: boolean; blueprint?: PortBlueprint; error?: any }> {
+  try {
+    const token = await getAccessToken();
+    
+    // Get current blueprint to merge properties
+    const currentBlueprint = await getBlueprint(identifier);
+    if (!currentBlueprint) {
+      return {
+        success: false,
+        error: `Blueprint '${identifier}' not found`,
+      };
+    }
+
+    // Merge new properties with existing schema properties
+    const updatedSchema = {
+      ...currentBlueprint.schema,
+      properties: {
+        ...(currentBlueprint.schema?.properties || {}),
+        ...properties,
+      },
+    };
+
+    const response = await axios.patch(
+      `${PORT_API_URL}/blueprints/${identifier}`,
+      { schema: updatedSchema },
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return {
+      success: true,
+      blueprint: response.data.blueprint,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      return {
+        success: false,
+        error: errorDetails,
+      };
+    }
+    throw error;
   }
 }
