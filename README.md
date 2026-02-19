@@ -102,6 +102,7 @@ port-assignment/
 │   │   ├── inspect-blueprints.ts   # inspect_port_data_model skill
 │   │   ├── upsert-blueprint.ts     # upsert_blueprint skill
 │   │   ├── apply-production-readiness.ts  # apply_production_readiness_template skill
+│   │   ├── setup-catalog-relations.ts  # setup_catalog_relations skill
 │   │   └── entities.ts     # Placeholder for entity-related skills
 │   └── /templates
 │       └── blueprints.ts   # Production Readiness blueprint templates
@@ -159,7 +160,7 @@ Added specialized endpoints for troubleshooting:
 
 ### Available Skills
 
-The MCP server provides three main skills for interacting with Port.io's Software Catalog:
+The MCP server provides four main skills for interacting with Port.io's Software Catalog:
 
 #### 1. **inspect_port_data_model**
 - **Description**: Inspect and retrieve complete Port data model information. Returns all blueprints with full schemas, properties, relations, and metadata. Essential for understanding the data model structure.
@@ -204,6 +205,28 @@ The MCP server provides three main skills for interacting with Port.io's Softwar
   - **Environment Blueprint**: Deployment environments with properties: type, region, url, description.
   - **Team Relations**: Configures Service blueprint relations to Port's built-in `_team` blueprint.
 - **Use Case**: Use as the first step when setting up a new Port catalog or when you need a standardized Production Readiness foundation.
+
+#### 4. **setup_catalog_relations**
+- **Description**: Add a relation to a blueprint that connects it to another blueprint. Use this to establish relationships between blueprints (e.g., Service -> Team, Service -> Environment). This skill uses PATCH to update the blueprint's relations object, preserving existing relations.
+- **Input**: Object with required fields:
+  - `sourceBlueprint` (string, required): The identifier of the blueprint where the relation starts
+  - `relationName` (string, required): The identifier for the relation (e.g., 'owner', 'environment', 'environment_test')
+  - `targetBlueprint` (string, required): The identifier of the blueprint it points to (e.g., '_team', 'environment')
+  - `many` (boolean, required): Whether this is a many-to-many or one-to-many relation (`true`) or one-to-one (`false`)
+  - `title` (string, optional): Human-readable title for the relation. If not provided, `relationName` will be used.
+  - `required` (boolean, optional): Whether the relation is required (default: `false`)
+- **Example**:
+  ```json
+  {
+    "sourceBlueprint": "service",
+    "relationName": "environment_test",
+    "targetBlueprint": "environment",
+    "many": true,
+    "title": "Test Environment",
+    "required": false
+  }
+  ```
+- **Use Case**: Use when you need to add or modify relations between existing blueprints. The skill preserves all existing relations and only adds or updates the specified relation.
 
 ### Template System
 
@@ -270,6 +293,25 @@ Templates can be customized and extended using the `upsert_blueprint` skill.
           "required": ["name"]
         }
       }
+    }
+  }
+}
+```
+
+### Example 4: Setup Relations Between Blueprints
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "setup_catalog_relations",
+    "arguments": {
+      "sourceBlueprint": "service",
+      "relationName": "environment_test",
+      "targetBlueprint": "environment",
+      "many": true,
+      "title": "Test Environment",
+      "required": false
     }
   }
 }
