@@ -8,55 +8,8 @@ const PORT_API_URL = "https://api.getport.io/v1";
 const WIDGET_TYPE_ALIASES: Record<string, string> = {
   "pie-chart": "entities-pie-chart",
   "pie_chart": "entities-pie-chart",
+  "table": "entities-table",
 };
-
-/** Build the minimal widget payload expected by Port (id, updatedAt, etc. as empty strings for create). */
-function buildWidgetPayload(
-  type: string,
-  config: {
-    title: string;
-    description?: string;
-    agentIdentifier?: string;
-    icon?: string;
-    useMCP?: boolean;
-    [key: string]: unknown;
-  }
-): Record<string, unknown> {
-  const normalizedType = WIDGET_TYPE_ALIASES[type] ?? type;
-  // Port API validation requires agentIdentifier on all widget payloads; use empty string for non-ai-agent.
-  const base: Record<string, unknown> = {
-    id: "",
-    updatedAt: "",
-    updatedBy: "",
-    createdAt: "",
-    createdBy: "",
-    type: normalizedType,
-    title: config.title,
-    description: config.description ?? "",
-    icon: config.icon ?? "",
-    agentIdentifier: normalizedType === "ai-agent" ? (config.agentIdentifier ?? "") : "",
-  };
-  if (normalizedType === "ai-agent") {
-    return {
-      ...base,
-      useMCP: config.useMCP ?? false,
-    };
-  }
-  if (normalizedType === "entities-pie-chart") {
-    // Pie chart requires blueprint and property (Breakdown by property); ensure they are included.
-    return {
-      ...base,
-      ...Object.fromEntries(
-        Object.entries(config).filter(
-          ([k]) => !["title", "description", "icon", "agentIdentifier"].includes(k)
-        )
-      ),
-    } as Record<string, unknown>;
-  }
-  // Pass through any extra fields for other widget types (markdown, table-entities-explorer, etc.)
-  const { title, description, icon, agentIdentifier: _ai, ...rest } = config;
-  return { ...base, ...rest } as Record<string, unknown>;
-}
 
 /**
  * Create the root dashboard-widget container on a page (POST /v1/pages/{page_identifier}/widgets).
@@ -124,6 +77,7 @@ export async function createRootDashboardWidget(
 /**
  * Add a widget to a page under a parent layout container (must be a dashboard-widget).
  * Supports any widget type (ai-agent, markdown, table-entities-explorer, etc.); pass type and type-specific fields in widgetConfig.
+ * Strictly follows Port's widget API structure with property# prefixing and proper dataset defaults.
  */
 export async function addWidgetToPage(
   pageIdentifier: string,
@@ -132,28 +86,61 @@ export async function addWidgetToPage(
     type: string;
     title: string;
     description?: string;
-    agentIdentifier?: string;
+    blueprint?: string;
+    property?: string;
     icon?: string;
-    useMCP?: boolean;
+    dataset?: { combinator: string; rules: any[] };
     [key: string]: unknown;
   }
 ): Promise<{ success: boolean; widget?: any; error?: any }> {
   try {
     const token = await getAccessToken();
+    
+    // Map incoming type to Port's canonical type
     const rawType = widgetConfig.type || "ai-agent";
     const type = WIDGET_TYPE_ALIASES[rawType] ?? rawType;
-    const widget = buildWidgetPayload(type, widgetConfig);
-
+    
+    // Format property with property# prefix if it exists
+    let formattedProperty: string | undefined;
+    if (widgetConfig.property) {
+      formattedProperty = widgetConfig.property.startsWith("property#")
+        ? widgetConfig.property
+        : `property#${widgetConfig.property}`;
+    }
+    
+    // Build widget payload following Port's exact structure
+    const widget: Record<string, unknown> = {
+      type,
+      title: widgetConfig.title,
+      icon: widgetConfig.icon || "Pie",
+      dataset: widgetConfig.dataset || { combinator: "and", rules: [] },
+      description: widgetConfig.description || "",
+    };
+    
+    // Add blueprint if provided
+    if (widgetConfig.blueprint) {
+      widget.blueprint = widgetConfig.blueprint;
+    }
+    
+    // Add formatted property if provided
+    if (formattedProperty) {
+      widget.property = formattedProperty;
+    }
+    
+    // Build request body with clean structure
     const requestBody = {
-      parentWidgetId,
       widget,
+      parentWidgetId,
     };
 
     const response = await axios.post(
       `${PORT_API_URL}/pages/${pageIdentifier}/widgets`,
       requestBody,
       {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       }
     );
     return {
@@ -172,7 +159,7 @@ export async function addWidgetToPage(
       ) {
         console.error(
           `[Port API] Error adding widget to page '${pageIdentifier}':`,
-          errorDetails
+          JSON.stringify(errorDetails, null, 2)
         );
       }
 
