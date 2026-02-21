@@ -2,6 +2,97 @@
 
 Node.js TypeScript project for Port.io integration with MCP server capabilities. This project implements a Model Context Protocol (MCP) server that provides AI assistants with tools to interact with Port.io's Software Catalog API via a **Streamable HTTP transport**, allowing for remote connectivity through tunnels like ngrok.
 
+**→ Want to run and connect this MCP server?** See [Quick start: Manually connect the MCP server](#-quick-start-manually-connect-the-mcp-server) below.
+
+---
+
+## 🏃 Quick start: Manually connect the MCP server
+
+Use this guide to run the project locally and connect it to Port.io so others (or you) can test it.
+
+### 1. Prerequisites
+
+- **Node.js** v18 or higher  
+- **npm** (or yarn)  
+- **Port.io account** — you’ll need API credentials and access to create/edit MCP Server and AI Agent entities  
+- **ngrok** — [install ngrok](https://ngrok.com/download) for exposing your local server to the internet
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Environment variables (`.env`)
+
+Create a `.env` file in the project root. You can copy from the example:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your Port.io OAuth credentials:
+
+```env
+PORT_CLIENT_ID=your_port_client_id
+PORT_CLIENT_SECRET=your_port_client_secret
+```
+
+Get these from your Port.io environment: **Settings → Credentials** (or your org’s developer/API credentials).
+
+### 4. Build (optional)
+
+For a production-style run, build the TypeScript project:
+
+```bash
+npm run build
+```
+
+*Note: `npm start` uses `tsx` and runs the TypeScript source directly, so you can skip `npm run build` for local development.*
+
+### 5. Start the MCP server
+
+```bash
+npm start
+```
+
+The server listens on **`http://localhost:3000/mcp`**. Leave this terminal running.
+
+### 6. Expose with ngrok
+
+In a **second terminal**, start ngrok:
+
+```bash
+ngrok http 3000
+```
+
+Copy the **HTTPS** URL ngrok shows (e.g. `https://abc123.ngrok-free.app`).  
+The full MCP endpoint is: **`https://<your-ngrok-host>/mcp`** (e.g. `https://abc123.ngrok-free.app/mcp`).
+
+### 7. Register the MCP server in Port.io
+
+In the Port.io UI:
+
+1. Create or edit the **MCP Server** entity.
+2. Set the **URL** to your ngrok HTTPS URL + `/mcp`, e.g. `https://abc123.ngrok-free.app/mcp`.
+3. Add a **Header** so ngrok doesn’t show the browser warning page:
+   - **Name:** `ngrok-skip-browser-warning`
+   - **Value:** `true`
+
+### 8. Allow tools in your AI Agent
+
+In your **AI Agent** configuration in Port.io, set the **Tools** regex so the agent can use this server’s tools, for example:
+
+```text
+^my_local_mcp_.*
+```
+
+(or the pattern that matches your MCP tool names).
+
+After these steps, the MCP server is connected and the Port AI agent can call its tools.
+
+---
+
 ## 🚀 Key Features
 
 - **HTTP Server Support**: Express-based MCP server with StreamableHTTPServerTransport for remote connections
@@ -21,6 +112,8 @@ Node.js TypeScript project for Port.io integration with MCP server capabilities.
 - npm or yarn
 - Port.io account with API credentials
 - **ngrok** (for local-to-remote tunneling)
+
+*Full setup steps (install, `.env`, `npm start`, ngrok, Port.io MCP + Agent config) are in [Quick start: Manually connect the MCP server](#-quick-start-manually-connect-the-mcp-server).*
 
 ## 🛠️ Installation
 
