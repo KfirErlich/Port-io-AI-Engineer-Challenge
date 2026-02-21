@@ -2,6 +2,97 @@
 
 Node.js TypeScript project for Port.io integration with MCP server capabilities. This project implements a Model Context Protocol (MCP) server that provides AI assistants with tools to interact with Port.io's Software Catalog API via a **Streamable HTTP transport**, allowing for remote connectivity through tunnels like ngrok.
 
+**→ Want to run and connect this MCP server?** See [Quick start: Manually connect the MCP server](#-quick-start-manually-connect-the-mcp-server) below.
+
+---
+
+## 🏃 Quick start: Manually connect the MCP server
+
+Use this guide to run the project locally and connect it to Port.io so others (or you) can test it.
+
+### 1. Prerequisites
+
+- **Node.js** v18 or higher  
+- **npm** (or yarn)  
+- **Port.io account** — you’ll need API credentials and access to create/edit MCP Server and AI Agent entities  
+- **ngrok** — [install ngrok](https://ngrok.com/download) for exposing your local server to the internet
+
+### 2. Install dependencies
+
+```bash
+npm install
+```
+
+### 3. Environment variables (`.env`)
+
+Create a `.env` file in the project root. You can copy from the example:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set your Port.io OAuth credentials:
+
+```env
+PORT_CLIENT_ID=your_port_client_id
+PORT_CLIENT_SECRET=your_port_client_secret
+```
+
+Get these from your Port.io environment: **Settings → Credentials** (or your org’s developer/API credentials).
+
+### 4. Build (optional)
+
+For a production-style run, build the TypeScript project:
+
+```bash
+npm run build
+```
+
+*Note: `npm start` uses `tsx` and runs the TypeScript source directly, so you can skip `npm run build` for local development.*
+
+### 5. Start the MCP server
+
+```bash
+npm start
+```
+
+The server listens on **`http://localhost:3000/mcp`**. Leave this terminal running.
+
+### 6. Expose with ngrok
+
+In a **second terminal**, start ngrok:
+
+```bash
+ngrok http 3000
+```
+
+Copy the **HTTPS** URL ngrok shows (e.g. `https://abc123.ngrok-free.app`).  
+The full MCP endpoint is: **`https://<your-ngrok-host>/mcp`** (e.g. `https://abc123.ngrok-free.app/mcp`).
+
+### 7. Register the MCP server in Port.io
+
+In the Port.io UI:
+
+1. Create or edit the **MCP Server** entity.
+2. Set the **URL** to your ngrok HTTPS URL + `/mcp`, e.g. `https://abc123.ngrok-free.app/mcp`.
+3. Add a **Header** so ngrok doesn’t show the browser warning page:
+   - **Name:** `ngrok-skip-browser-warning`
+   - **Value:** `true`
+
+### 8. Allow tools in your AI Agent
+
+In your **AI Agent** configuration in Port.io, set the **Tools** regex so the agent can use this server’s tools, for example:
+
+```text
+^my_local_mcp_.*
+```
+
+(or the pattern that matches your MCP tool names).
+
+After these steps, the MCP server is connected and the Port AI agent can call its tools.
+
+---
+
 ## 🚀 Key Features
 
 - **HTTP Server Support**: Express-based MCP server with StreamableHTTPServerTransport for remote connections
@@ -21,6 +112,8 @@ Node.js TypeScript project for Port.io integration with MCP server capabilities.
 - npm or yarn
 - Port.io account with API credentials
 - **ngrok** (for local-to-remote tunneling)
+
+*Full setup steps (install, `.env`, `npm start`, ngrok, Port.io MCP + Agent config) are in [Quick start: Manually connect the MCP server](#-quick-start-manually-connect-the-mcp-server).*
 
 ## 🛠️ Installation
 
@@ -101,9 +194,12 @@ port-assignment/
 │   ├── /PortApi            # Port API client modules
 │   │   ├── index.ts        # Exports all API functions
 │   │   ├── auth.ts         # OAuth2 authentication
-│   │   ├── blueprints.ts   # Blueprint CRUD operations
+│   │   ├── blueprints.ts   # Blueprint CRUD operations & scorecards
 │   │   ├── integrations.ts # Integration management (create, update, resync, health)
-│   │   └── entities.ts     # Entity search and retrieval
+│   │   ├── entities.ts     # Entity search, retrieval, and upsert
+│   │   ├── actions.ts      # Self-service action management
+│   │   ├── pages.ts        # Page management (dashboards, blueprint-entities)
+│   │   └── widgets.ts      # Widget management (add widgets to pages)
 │   ├── /skills
 │   │   ├── index.ts        # Skills aggregator (exports allSkills)
 │   │   ├── /Scaffolding    # Catalog scaffolding skills
@@ -115,10 +211,23 @@ port-assignment/
 │   │   │   ├── check-integration-health.ts    # check_integration_health
 │   │   │   ├── configure-integration.ts       # configure_integration
 │   │   │   └── trigger-resync.ts             # trigger_resync (PATCH-based)
-│   │   └── /Catalog        # Entity catalog skills
-│   │       ├── get-integration-definition.ts  # get_integration_definition
-│   │       ├── search-entities.ts             # search_entities
-│   │       └── get-entity.ts                  # get_entity
+│   │   ├── /Catalog        # Entity catalog skills
+│   │   │   ├── get-integration-definition.ts  # get_integration_definition
+│   │   │   ├── search-entities.ts             # search_entities
+│   │   │   ├── get-entity.ts                  # get_entity
+│   │   │   └── upsert-entity.ts              # upsert_entity
+│   │   ├── /Governance     # Scorecard management skills
+│   │   │   ├── create-scorecard.ts            # create_scorecard
+│   │   │   ├── update-scorecard.ts            # update_scorecard
+│   │   │   ├── delete-scorecard.ts            # delete_scorecard
+│   │   │   └── get-all-scorecards.ts          # get_all_scorecards
+│   │   ├── /Actions        # Self-service action skills
+│   │   │   └── manage-self-service-action.ts  # manage_self_service_action
+│   │   └── /Widgets        # Page and widget management skills
+│   │       ├── create-page.ts                 # create_page
+│   │       ├── add-widget-to-page.ts         # add_widget_to_page
+│   │       ├── get-page.ts                    # get_page
+│   │       └── list-pages.ts                  # list_pages
 │   └── /templates
 │       └── blueprints.ts   # Production Readiness blueprint templates
 └── /dist                   # Compiled output
@@ -157,17 +266,38 @@ The Port API modules (`src/PortApi/`) provide comprehensive access to Port.io's 
 * `getBlueprints()`: Retrieve all blueprints
 * `getBlueprint()`: Get a specific blueprint by identifier
 * `upsertBlueprint()`: Create or update a blueprint (automatically detects existence)
+* `updateBlueprintRelations()`: Update blueprint relations
+* `updateBlueprintSchemaProperties()`: Add or update properties in blueprint schema
+* `createScorecard()`: Create a new scorecard for a blueprint
+* `updateScorecard()`: Update an existing scorecard
+* `deleteScorecard()`: Delete a scorecard
+* `getAllScorecards()`: Get all scorecards across all blueprints
 
 **Integration Operations (`integrations.ts`)**:
 * `getIntegrations()`: List all installed integrations
 * `createIntegration()`: Install a new integration with mapping configuration
-* `updateIntegration()`: Update an existing integration's mapping
+* `updateIntegration()`: Update an existing integration's mapping with smart resource merging (preserves existing resources, updates matching ones by kind/blueprint, appends new ones)
 * `triggerResync()`: Trigger a resync by "touching" integration configuration (uses PATCH)
 * `getIntegrationDefinition()`: Retrieve full integration configuration including mappings
+
+**Action Operations (`actions.ts`)**:
+* `createAction()`: Create a new self-service action
+* `updateAction()`: Update an existing self-service action (uses PATCH)
+* `deleteAction()`: Delete a self-service action
+
+**Page Operations (`pages.ts`)**:
+* `listPages()`: List all pages in the portal
+* `getPage()`: Get a page by identifier with full widget structure
+* `createPage()`: Create a new dashboard or blueprint-entities page (includes root dashboard-widget for dashboards)
+
+**Widget Operations (`widgets.ts`)**:
+* `createRootDashboardWidget()`: Create the root dashboard-widget container on a page
+* `addWidgetToPage()`: Add a widget to a page under a parent layout container (supports all widget types with type aliases)
 
 **Entity Operations (`entities.ts`)**:
 * `searchEntities()`: Search entities across blueprints with query filters
 * `getEntity()`: Retrieve full details for a specific entity
+* `upsertEntity()`: Create or update an entity using blueprint-scoped API (with upsert=true&merge=true)
 
 **Error Handling**: Comprehensive error handling with detailed error messages and logging
 
@@ -192,7 +322,7 @@ Added specialized endpoints for troubleshooting:
 
 ### Available Skills
 
-The MCP server provides **10 skills** organized into three categories:
+The MCP server provides **20 skills** organized into five categories:
 
 #### **Scaffolding Skills** (Catalog Setup & Management)
 
@@ -355,26 +485,219 @@ The MCP server provides **10 skills** organized into three categories:
   }
   ```
 - **Use Case**: Use to get detailed information about a specific entity, verify entity properties, or inspect entity relationships.
-- **Description**: Add a relation to a blueprint that connects it to another blueprint. Use this to establish relationships between blueprints (e.g., Service -> Team, Service -> Environment). This skill uses PATCH to update the blueprint's relations object, preserving existing relations.
+
+11. **upsert_entity**
+- **Description**: Create or update an entity in a Port blueprint using the blueprint-scoped API with upsert and merge enabled. Automatically creates the entity if it doesn't exist, or updates it if it does.
 - **Input**: Object with required fields:
-  - `sourceBlueprint` (string, required): The identifier of the blueprint where the relation starts
-  - `relationName` (string, required): The identifier for the relation (e.g., 'owner', 'environment', 'environment_test')
-  - `targetBlueprint` (string, required): The identifier of the blueprint it points to (e.g., '_team', 'environment')
-  - `many` (boolean, required): Whether this is a many-to-many or one-to-many relation (`true`) or one-to-one (`false`)
-  - `title` (string, optional): Human-readable title for the relation. If not provided, `relationName` will be used.
-  - `required` (boolean, optional): Whether the relation is required (default: `false`)
+  - `blueprint_identifier` (string, required): The blueprint identifier
+  - `identifier` (string, required): The entity identifier
+  - `title` (string, optional): Entity title
+  - `icon` (string, optional): Entity icon
+  - `properties` (object, optional): Entity properties
+  - `relations` (object, optional): Entity relations
+  - `teams` (array of strings, optional): Associated teams
 - **Example**:
   ```json
   {
-    "sourceBlueprint": "service",
-    "relationName": "environment_test",
-    "targetBlueprint": "environment",
-    "many": true,
-    "title": "Test Environment",
-    "required": false
+    "blueprint_identifier": "service",
+    "identifier": "my-service",
+    "title": "My Service",
+    "properties": {
+      "description": "A sample service"
+    }
   }
   ```
-- **Use Case**: Use when you need to add or modify relations between existing blueprints. The skill preserves all existing relations and only adds or updates the specified relation.
+- **Use Case**: Use to create or update entities programmatically, ensuring data consistency with merge behavior.
+
+#### **Governance Skills** (Scorecard Management)
+
+12. **create_scorecard**
+- **Description**: Creates a new Scorecard for a specific blueprint to monitor service maturity and production readiness. Scorecards evaluate entities based on rules and assign levels.
+- **Input**: Object with required fields:
+  - `blueprint` (string, required): The blueprint identifier
+  - `scorecard` (object, required): Scorecard definition with:
+    - `identifier` (string, required): Scorecard identifier
+    - `title` (string, required): Scorecard title
+    - `rules` (array, required): Evaluation rules
+    - `levels` (array, required): Scorecard levels (e.g., Bronze, Silver, Gold)
+    - `filter` (object, optional): Filter conditions (defaults to `{ combinator: "and", conditions: [] }`)
+- **Example**:
+  ```json
+  {
+    "blueprint": "service",
+    "scorecard": {
+      "identifier": "production-readiness",
+      "title": "Production Readiness",
+      "rules": [...],
+      "levels": [
+        { "level": "Bronze", "color": "#8B4513" },
+        { "level": "Silver", "color": "#C0C0C0" },
+        { "level": "Gold", "color": "#FFD700" }
+      ]
+    }
+  }
+  ```
+- **Use Case**: Use to create scorecards that evaluate and score entities based on defined criteria.
+
+13. **update_scorecard**
+- **Description**: Updates an existing Scorecard's definition, levels, or rules for a blueprint.
+- **Input**: Object with required fields:
+  - `blueprint` (string, required): The blueprint identifier
+  - `scorecardIdentifier` (string, required): The existing scorecard identifier
+  - `scorecard` (object, required): Updated scorecard definition (same structure as create_scorecard)
+- **Example**:
+  ```json
+  {
+    "blueprint": "service",
+    "scorecardIdentifier": "production-readiness",
+    "scorecard": {
+      "identifier": "production-readiness",
+      "title": "Updated Production Readiness",
+      "rules": [...],
+      "levels": [...]
+    }
+  }
+  ```
+- **Use Case**: Use to modify existing scorecard rules, levels, or filters.
+
+14. **delete_scorecard**
+- **Description**: Deletes an existing scorecard from a blueprint.
+- **Input**: Object with required fields:
+  - `blueprint` (string, required): The blueprint identifier
+  - `scorecardIdentifier` (string, required): The scorecard identifier to delete
+- **Example**:
+  ```json
+  {
+    "blueprint": "service",
+    "scorecardIdentifier": "production-readiness"
+  }
+  ```
+- **Use Case**: Use to remove scorecards that are no longer needed.
+
+15. **get_all_scorecards**
+- **Description**: Retrieves all scorecards across all blueprints in the organization.
+- **Input**: No parameters required (call with empty object `{}`)
+- **Use Case**: Use to discover and inspect all scorecards in the organization.
+
+#### **Actions Skills** (Self-Service Actions)
+
+16. **manage_self_service_action**
+- **Description**: A unified tool to Create, Update (PATCH), or Delete self-service actions in Port. Self-service actions enable users to trigger automated workflows from the Port UI.
+- **Input**: Object with required fields:
+  - `operation` (enum, required): One of `"create"`, `"update"`, or `"delete"`
+  - `identifier` (string, required): The action identifier
+  - `actionData` (object, optional): Required for create/update operations, containing:
+    - `title` (string, optional): Action title
+    - `trigger` (any, optional): Trigger configuration
+    - `invocationMethod` (any, optional): Invocation method (e.g., webhook, API)
+    - `description` (string, optional): Action description
+    - `publish` (boolean, optional): Whether to publish the action
+- **Example (Create)**:
+  ```json
+  {
+    "operation": "create",
+    "identifier": "deploy-service",
+    "actionData": {
+      "title": "Deploy Service",
+      "description": "Deploy a service to production",
+      "invocationMethod": {
+        "type": "WEBHOOK",
+        "url": "https://api.example.com/deploy"
+      },
+      "publish": true
+    }
+  }
+  ```
+- **Example (Update)**:
+  ```json
+  {
+    "operation": "update",
+    "identifier": "deploy-service",
+    "actionData": {
+      "title": "Updated Deploy Service",
+      "publish": false
+    }
+  }
+  ```
+- **Example (Delete)**:
+  ```json
+  {
+    "operation": "delete",
+    "identifier": "deploy-service"
+  }
+  ```
+- **Use Case**: Use to manage self-service actions that enable automated workflows and integrations.
+
+#### **Widgets Skills** (Page and Widget Management)
+
+17. **create_page**
+- **Description**: Creates a new dashboard or blueprint-entities page in Port. For dashboards, automatically creates a root dashboard-widget container so the page is ready to accept widgets. Returns rootWidgetId for dashboards—use it as parentWidgetId when calling add_widget_to_page. If the page identifier already exists, gracefully retrieves the existing page instead of failing.
+- **Input**: Object with required fields:
+  - `identifier` (string, required): Page identifier
+  - `title` (string, required): Page title
+  - `type` (enum, required): Either `"dashboard"` or `"blueprint-entities"`
+  - `icon` (string, optional): Page icon
+  - `description` (string, optional): Page description
+  - `showInSidebar` (boolean, optional): Whether to show in sidebar
+  - `section` (string, optional): Sidebar section
+- **Example**:
+  ```json
+  {
+    "identifier": "my-dashboard",
+    "title": "My Dashboard",
+    "type": "dashboard",
+    "icon": "Dashboard",
+    "description": "A custom dashboard"
+  }
+  ```
+- **Use Case**: Use to create custom dashboards or blueprint-entities pages for organizing and visualizing catalog data.
+
+18. **add_widget_to_page**
+- **Description**: Adds a widget to a Port page. The parent must be a dashboard-widget (use rootWidgetId from create_page or get_page for dashboards). Supports any Port widget type including ai-agent, markdown, table-entities-explorer, entities-pie-chart, and more. Widget type aliases are automatically mapped (e.g., "pie-chart" → "entities-pie-chart").
+- **Input**: Object with required fields:
+  - `pageIdentifier` (string, required): The page identifier
+  - `parentWidgetId` (string, required): The parent widget ID (must be a dashboard-widget)
+  - `widgetConfig` (object, required): Widget configuration with:
+    - `type` (string, required): Widget type (e.g., "ai-agent", "markdown", "entities-pie-chart", "table-entities-explorer")
+    - `title` (string, required): Widget title
+    - `description` (string, optional): Widget description
+    - `icon` (string, optional): Widget icon
+    - Type-specific fields:
+      - For `ai-agent`: `agentIdentifier`, `useMCP`
+      - For `markdown`: `markdown`
+      - For `entities-pie-chart`: `blueprint`, `property` (with property# prefix automatically added)
+      - For `table-entities-explorer`: `blueprint`, `dataset`
+- **Example**:
+  ```json
+  {
+    "pageIdentifier": "my-dashboard",
+    "parentWidgetId": "widget-123",
+    "widgetConfig": {
+      "type": "entities-pie-chart",
+      "title": "Services by Readiness",
+      "blueprint": "service",
+      "property": "production_readiness"
+    }
+  }
+  ```
+- **Use Case**: Use to add widgets to dashboards for visualizing catalog data, displaying AI agents, or showing markdown content.
+
+19. **get_page**
+- **Description**: Retrieves the full page JSON from Port for a given page identifier. Returns the complete response including the widgets array, so the Agent can extract id fields of existing layout containers (e.g., rootWidgetId for dashboards).
+- **Input**: Object with required field:
+  - `identifier` (string, required): The page identifier
+- **Example**:
+  ```json
+  {
+    "identifier": "my-dashboard"
+  }
+  ```
+- **Use Case**: Use to inspect existing pages, retrieve rootWidgetId for adding widgets, or understand page structure.
+
+20. **list_pages**
+- **Description**: Returns a list of all pages in the Port portal with their identifier and title. Use this to discover existing pages before injecting widgets (e.g., with add_widget_to_page). For full page structure including widgets and rootWidgetId, use get_page.
+- **Input**: No parameters required (call with empty object `{}`)
+- **Use Case**: Use to discover existing pages before adding widgets or to get an overview of all pages in the portal.
 
 ### Template System
 
@@ -551,6 +874,130 @@ Templates can be customized and extended using the `upsert_blueprint` skill.
 }
 ```
 
+### Example 10: Upsert Entity
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "upsert_entity",
+    "arguments": {
+      "blueprint_identifier": "service",
+      "identifier": "my-service",
+      "title": "My Service",
+      "properties": {
+        "description": "A sample service"
+      }
+    }
+  }
+}
+```
+
+### Example 11: Create Scorecard
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "create_scorecard",
+    "arguments": {
+      "blueprint": "service",
+      "scorecard": {
+        "identifier": "production-readiness",
+        "title": "Production Readiness",
+        "rules": [
+          {
+            "identifier": "has-docs",
+            "level": "Gold",
+            "query": {
+              "combinator": "and",
+              "conditions": [
+                {
+                  "property": "$blueprint",
+                  "operator": "=",
+                  "value": "service"
+                },
+                {
+                  "property": "documentation",
+                  "operator": "isNotEmpty"
+                }
+              ]
+            }
+          }
+        ],
+        "levels": [
+          { "level": "Bronze", "color": "#8B4513" },
+          { "level": "Silver", "color": "#C0C0C0" },
+          { "level": "Gold", "color": "#FFD700" }
+        ]
+      }
+    }
+  }
+}
+```
+
+### Example 12: Create Page
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "create_page",
+    "arguments": {
+      "identifier": "my-dashboard",
+      "title": "My Dashboard",
+      "type": "dashboard",
+      "icon": "Dashboard"
+    }
+  }
+}
+```
+
+### Example 13: Add Widget to Page
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "add_widget_to_page",
+    "arguments": {
+      "pageIdentifier": "my-dashboard",
+      "parentWidgetId": "root-widget-id-from-create-page",
+      "widgetConfig": {
+        "type": "entities-pie-chart",
+        "title": "Services by Readiness",
+        "blueprint": "service",
+        "property": "production_readiness"
+      }
+    }
+  }
+}
+```
+
+### Example 14: Manage Self-Service Action
+
+```json
+{
+  "method": "tools/call",
+  "params": {
+    "name": "manage_self_service_action",
+    "arguments": {
+      "operation": "create",
+      "identifier": "deploy-service",
+      "actionData": {
+        "title": "Deploy Service",
+        "description": "Deploy a service to production",
+        "invocationMethod": {
+          "type": "WEBHOOK",
+          "url": "https://api.example.com/deploy"
+        },
+        "publish": true
+      }
+    }
+  }
+}
+```
+
 ## 🔄 Recent Changes
 
 ### Integration Resync Implementation Update
@@ -571,3 +1018,69 @@ Templates can be customized and extended using the `upsert_blueprint` skill.
 **Why**: The Port API for this integration type does not expose a standard POST resync endpoint. The PATCH approach "touches" the integration configuration, which triggers Port's automatic resync mechanism.
 
 **Migration**: Existing code using `trigger_resync` should remove the `integrationType` parameter and only pass `identifier`.
+
+### Integration Update Enhancement
+
+**Changed**: The `updateIntegration()` function now includes smart resource merging logic.
+
+**Features**:
+- Preserves all existing integration resources
+- Updates matching resources by `kind` and `blueprint` properties
+- Appends new resources that don't match existing ones
+- Handles nested mapping structures (extracts from `port.resources` or `resources` arrays)
+- Validates final resource structure (ensures flat array with required `kind` property)
+- Enhanced error logging for 422 validation errors
+
+**Why**: Provides safer integration updates that preserve existing configuration while allowing incremental changes.
+
+### New Skills Added
+
+**Governance Skills** (4 new skills):
+- `create_scorecard`: Create scorecards for blueprint evaluation
+- `update_scorecard`: Update existing scorecards
+- `delete_scorecard`: Delete scorecards
+- `get_all_scorecards`: Retrieve all scorecards across blueprints
+
+**Catalog Skills** (1 new skill):
+- `upsert_entity`: Create or update entities with merge support
+
+**Actions Skills** (1 new skill):
+- `manage_self_service_action`: Unified tool for creating, updating, or deleting self-service actions
+
+**Widgets Skills** (4 new skills):
+- `create_page`: Create dashboard or blueprint-entities pages
+- `add_widget_to_page`: Add widgets to pages (supports all widget types)
+- `get_page`: Retrieve full page structure
+- `list_pages`: List all pages in the portal
+
+### New API Modules
+
+**Actions API (`actions.ts`)**:
+- Full CRUD operations for self-service actions
+- Supports creating, updating (PATCH), and deleting actions
+- Comprehensive error handling for 400/422/404 responses
+
+**Pages API (`pages.ts`)**:
+- List, get, and create pages
+- Automatic root dashboard-widget creation for dashboards
+- Graceful handling of existing page identifiers
+
+**Widgets API (`widgets.ts`)**:
+- Create root dashboard-widget containers
+- Add widgets to pages with type alias support
+- Property formatting with automatic `property#` prefixing
+
+### Blueprint API Enhancements
+
+**New Functions**:
+- `updateBlueprintRelations()`: Update blueprint relations
+- `updateBlueprintSchemaProperties()`: Add/update schema properties
+- `createScorecard()`: Create scorecards
+- `updateScorecard()`: Update scorecards
+- `deleteScorecard()`: Delete scorecards
+- `getAllScorecards()`: Get all scorecards
+
+### Entity API Enhancements
+
+**New Function**:
+- `upsertEntity()`: Create or update entities using blueprint-scoped API with upsert and merge enabled

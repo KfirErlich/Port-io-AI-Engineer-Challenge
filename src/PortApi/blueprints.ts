@@ -232,3 +232,166 @@ export async function updateBlueprintSchemaProperties(
     throw error;
   }
 }
+
+/**
+ * Create a new scorecard for a blueprint
+ */
+export async function createScorecard(
+  blueprintIdentifier: string,
+  scorecard: {
+    identifier: string;
+    title: string;
+    rules: any[];
+    levels: any[];
+    filter?: any;
+  }
+): Promise<{ success: boolean; scorecard?: any; error?: any }> {
+  try {
+    const token = await getAccessToken();
+    
+    // Default filter if not provided
+    const scorecardPayload = {
+      ...scorecard,
+      filter: scorecard.filter || { combinator: "and", conditions: [] },
+    };
+
+    const response = await axios.post(
+      `${PORT_API_URL}/blueprints/${blueprintIdentifier}/scorecards`,
+      scorecardPayload,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return {
+      success: true,
+      scorecard: response.data.scorecard,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      
+      // Log full error details for 400/422 responses
+      if (axiosError.response?.status === 400 || axiosError.response?.status === 422) {
+        console.error(`[Port API] Error creating scorecard '${scorecard.identifier}' for blueprint '${blueprintIdentifier}':`, errorDetails);
+      }
+      
+      return {
+        success: false,
+        error: errorDetails,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Update an existing scorecard
+ */
+export async function updateScorecard(
+  blueprintIdentifier: string,
+  scorecardIdentifier: string,
+  scorecard: {
+    identifier: string;
+    title: string;
+    rules: any[];
+    levels: any[];
+    filter?: any;
+  }
+): Promise<{ success: boolean; scorecard?: any; error?: any }> {
+  try {
+    const token = await getAccessToken();
+    
+    // Default filter if not provided
+    const scorecardPayload = {
+      ...scorecard,
+      filter: scorecard.filter || { combinator: "and", conditions: [] },
+    };
+
+    const response = await axios.put(
+      `${PORT_API_URL}/blueprints/${blueprintIdentifier}/scorecards/${scorecardIdentifier}`,
+      scorecardPayload,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return {
+      success: true,
+      scorecard: response.data.scorecard,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      
+      // Log full error details for 400/422 responses
+      if (axiosError.response?.status === 400 || axiosError.response?.status === 422) {
+        console.error(`[Port API] Error updating scorecard '${scorecardIdentifier}' for blueprint '${blueprintIdentifier}':`, errorDetails);
+      }
+      
+      return {
+        success: false,
+        error: errorDetails,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Delete a scorecard
+ */
+export async function deleteScorecard(
+  blueprintIdentifier: string,
+  scorecardIdentifier: string
+): Promise<{ success: boolean; error?: any }> {
+  try {
+    const token = await getAccessToken();
+
+    await axios.delete(
+      `${PORT_API_URL}/blueprints/${blueprintIdentifier}/scorecards/${scorecardIdentifier}`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
+      }
+    );
+    return {
+      success: true,
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      return {
+        success: false,
+        error: errorDetails,
+      };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Get all scorecards across all blueprints
+ */
+export async function getAllScorecards(): Promise<{ success: boolean; scorecards?: any[]; error?: any }> {
+  try {
+    const token = await getAccessToken();
+    const response = await axios.get(`${PORT_API_URL}/scorecards`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return {
+      success: true,
+      scorecards: response.data.scorecards || [],
+    };
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      const axiosError = error as AxiosError;
+      const errorDetails = axiosError.response?.data || axiosError.message;
+      return {
+        success: false,
+        error: errorDetails,
+      };
+    }
+    throw error;
+  }
+}

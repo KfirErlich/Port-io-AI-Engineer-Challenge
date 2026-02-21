@@ -73,3 +73,34 @@ export async function getEntity(
   );
   return response.data.entity || response.data;
 }
+
+/**
+ * Create or update an entity using the blueprint-scoped API
+ * POST /v1/blueprints/{blueprint_identifier}/entities?upsert=true&merge=true
+ */
+export async function upsertEntity(
+  blueprintIdentifier: string,
+  entity: {
+    identifier: string;
+    title?: string;
+    icon?: string;
+    properties?: Record<string, unknown>;
+    relations?: Record<string, unknown>;
+    teams?: string[];
+  }
+): Promise<any> {
+  const token = await getAccessToken();
+  const url = `${PORT_API_URL}/blueprints/${blueprintIdentifier}/entities?upsert=true&merge=true`;
+  const body = {
+    identifier: entity.identifier,
+    title: entity.title ?? undefined,
+    icon: entity.icon ?? undefined,
+    properties: entity.properties ?? {},
+    relations: entity.relations ?? {},
+    teams: entity.teams ?? [],
+  };
+  const response = await axios.post(url, body, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+}

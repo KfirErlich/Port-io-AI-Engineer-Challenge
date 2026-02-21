@@ -88,15 +88,22 @@ export const configureIntegrationSkill = {
               },
             ],
           };
-        } catch (error) {
+        } catch (error: any) {
           const errorMessage = error instanceof Error ? error.message : String(error);
           console.error(`[Port API] Error updating integration:`, errorMessage);
+          
+          // Enhanced error message for 422 validation errors
+          let detailedError = errorMessage;
+          if (error.response && error.response.status === 422 && error.response.data) {
+            const errorData = error.response.data;
+            detailedError = `Validation Error (422): ${JSON.stringify(errorData, null, 2)}\n\nOriginal error: ${errorMessage}`;
+          }
           
           return {
             content: [
               {
                 type: "text" as const,
-                text: `Failed to update integration '${installationId}': ${errorMessage}`,
+                text: `Failed to update integration '${installationId}': ${detailedError}`,
               },
             ],
             isError: true,
