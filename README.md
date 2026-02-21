@@ -106,82 +106,6 @@ After these steps, the MCP server is connected and the Port AI agent can call it
 - **Type Safety**: Full TypeScript support with Zod schema validation
 - **Error Handling**: Comprehensive error handling with detailed error messages
 
-## 📋 Prerequisites
-
-- Node.js (v18 or higher)
-- npm or yarn
-- Port.io account with API credentials
-- **ngrok** (for local-to-remote tunneling)
-
-*Full setup steps (install, `.env`, `npm start`, ngrok, Port.io MCP + Agent config) are in [Quick start: Manually connect the MCP server](#-quick-start-manually-connect-the-mcp-server).*
-
-## 🛠️ Installation
-
-```bash
-npm install
-
-```
-
-## 🔐 Environment Variables
-
-Create a `.env` file in the root directory:
-
-```env
-PORT_CLIENT_ID=your_client_id
-PORT_CLIENT_SECRET=your_client_secret
-
-```
-
-## 🏗️ Development & Deployment
-
-1. **Build the project:**
-```bash
-npm run build
-
-```
-
-
-2. **Start the server:**
-```bash
-npm start
-
-```
-
-
-*The server will run on `http://localhost:3000/mcp`.*
-3. **Expose to Port.io (via ngrok):**
-```bash
-ngrok http 3000
-
-```
-
-
-*Copy the `https` URL provided by ngrok (e.g., `https://xxxx.ngrok-free.app/mcp`).*
-
-## 🔌 Connectivity Configuration
-
-To allow Port AI to communicate with this server, the following configurations are required in the Port.io UI:
-
-### Port.io MCP Entity Setup
-
-When registering the MCP Server entity in Port, ensure the following **Headers** are added:
-
-```json
-{
-  "ngrok-skip-browser-warning": "true"
-}
-
-```
-
-### AI Agent Configuration
-
-Ensure your AI Agent entity has the following **Tools** regex pattern allowed:
-
-```text
-^my_local_mcp_.*
-
-```
-
 ## 📂 Project Structure
 
 ```
@@ -699,7 +623,7 @@ The MCP server provides **20 skills** organized into five categories:
 - **Input**: No parameters required (call with empty object `{}`)
 - **Use Case**: Use to discover existing pages before adding widgets or to get an overview of all pages in the portal.
 
-### Template System
+## 🔄 Recent Changes
 
 The project includes a template system (`src/templates/blueprints.ts`) that provides standardized blueprint definitions following Port.io best practices:
 
@@ -708,6 +632,89 @@ The project includes a template system (`src/templates/blueprints.ts`) that prov
 - **PRODUCTION_READINESS_TEMPLATES**: Complete template set for quick setup
 
 Templates can be customized and extended using the `upsert_blueprint` skill.
+
+### Integration Resync Implementation Update
+
+**Changed**: The `trigger_resync` skill has been updated to use PATCH instead of POST.
+
+**Previous Implementation**:
+- Used `POST /v1/integration/{type}/{id}/resync` endpoint
+- Required both `integrationType` and `identifier` parameters
+
+**Current Implementation**:
+- Uses `PATCH /v1/integration/{identifier}` endpoint
+- Only requires `identifier` parameter
+- Sends metadata update: `{ metadata: { lastTriggered: ISO_DATE } }`
+- Port automatically triggers resync when integration configuration is updated
+- Enhanced error handling with specific 404 messages for incorrect installation IDs
+
+**Why**: The Port API for this integration type does not expose a standard POST resync endpoint. The PATCH approach "touches" the integration configuration, which triggers Port's automatic resync mechanism.
+
+**Migration**: Existing code using `trigger_resync` should remove the `integrationType` parameter and only pass `identifier`.
+
+### Integration Update Enhancement
+
+**Changed**: The `updateIntegration()` function now includes smart resource merging logic.
+
+**Features**:
+- Preserves all existing integration resources
+- Updates matching resources by `kind` and `blueprint` properties
+- Appends new resources that don't match existing ones
+- Handles nested mapping structures (extracts from `port.resources` or `resources` arrays)
+- Validates final resource structure (ensures flat array with required `kind` property)
+- Enhanced error logging for 422 validation errors
+
+**Why**: Provides safer integration updates that preserve existing configuration while allowing incremental changes.
+
+**Governance Skills** (4 new skills):
+- `create_scorecard`: Create scorecards for blueprint evaluation
+- `update_scorecard`: Update existing scorecards
+- `delete_scorecard`: Delete scorecards
+- `get_all_scorecards`: Retrieve all scorecards across blueprints
+
+**Catalog Skills** (1 new skill):
+- `upsert_entity`: Create or update entities with merge support
+
+**Actions Skills** (1 new skill):
+- `manage_self_service_action`: Unified tool for creating, updating, or deleting self-service actions
+
+**Widgets Skills** (4 new skills):
+- `create_page`: Create dashboard or blueprint-entities pages
+- `add_widget_to_page`: Add widgets to pages (supports all widget types)
+- `get_page`: Retrieve full page structure
+- `list_pages`: List all pages in the portal
+
+### New API Modules
+
+**Actions API (`actions.ts`)**:
+- Full CRUD operations for self-service actions
+- Supports creating, updating (PATCH), and deleting actions
+- Comprehensive error handling for 400/422/404 responses
+
+**Pages API (`pages.ts`)**:
+- List, get, and create pages
+- Automatic root dashboard-widget creation for dashboards
+- Graceful handling of existing page identifiers
+
+**Widgets API (`widgets.ts`)**:
+- Create root dashboard-widget containers
+- Add widgets to pages with type alias support
+- Property formatting with automatic `property#` prefixing
+
+### Blueprint API Enhancements
+
+**New Functions**:
+- `updateBlueprintRelations()`: Update blueprint relations
+- `updateBlueprintSchemaProperties()`: Add/update schema properties
+- `createScorecard()`: Create scorecards
+- `updateScorecard()`: Update scorecards
+- `deleteScorecard()`: Delete scorecards
+- `getAllScorecards()`: Get all scorecards
+
+### Entity API Enhancements
+
+**New Function**:
+- `upsertEntity()`: Create or update entities using blueprint-scoped API with upsert and merge enabled
 
 ## 📖 Usage Examples
 
@@ -997,90 +1004,3 @@ Templates can be customized and extended using the `upsert_blueprint` skill.
   }
 }
 ```
-
-## 🔄 Recent Changes
-
-### Integration Resync Implementation Update
-
-**Changed**: The `trigger_resync` skill has been updated to use PATCH instead of POST.
-
-**Previous Implementation**:
-- Used `POST /v1/integration/{type}/{id}/resync` endpoint
-- Required both `integrationType` and `identifier` parameters
-
-**Current Implementation**:
-- Uses `PATCH /v1/integration/{identifier}` endpoint
-- Only requires `identifier` parameter
-- Sends metadata update: `{ metadata: { lastTriggered: ISO_DATE } }`
-- Port automatically triggers resync when integration configuration is updated
-- Enhanced error handling with specific 404 messages for incorrect installation IDs
-
-**Why**: The Port API for this integration type does not expose a standard POST resync endpoint. The PATCH approach "touches" the integration configuration, which triggers Port's automatic resync mechanism.
-
-**Migration**: Existing code using `trigger_resync` should remove the `integrationType` parameter and only pass `identifier`.
-
-### Integration Update Enhancement
-
-**Changed**: The `updateIntegration()` function now includes smart resource merging logic.
-
-**Features**:
-- Preserves all existing integration resources
-- Updates matching resources by `kind` and `blueprint` properties
-- Appends new resources that don't match existing ones
-- Handles nested mapping structures (extracts from `port.resources` or `resources` arrays)
-- Validates final resource structure (ensures flat array with required `kind` property)
-- Enhanced error logging for 422 validation errors
-
-**Why**: Provides safer integration updates that preserve existing configuration while allowing incremental changes.
-
-### New Skills Added
-
-**Governance Skills** (4 new skills):
-- `create_scorecard`: Create scorecards for blueprint evaluation
-- `update_scorecard`: Update existing scorecards
-- `delete_scorecard`: Delete scorecards
-- `get_all_scorecards`: Retrieve all scorecards across blueprints
-
-**Catalog Skills** (1 new skill):
-- `upsert_entity`: Create or update entities with merge support
-
-**Actions Skills** (1 new skill):
-- `manage_self_service_action`: Unified tool for creating, updating, or deleting self-service actions
-
-**Widgets Skills** (4 new skills):
-- `create_page`: Create dashboard or blueprint-entities pages
-- `add_widget_to_page`: Add widgets to pages (supports all widget types)
-- `get_page`: Retrieve full page structure
-- `list_pages`: List all pages in the portal
-
-### New API Modules
-
-**Actions API (`actions.ts`)**:
-- Full CRUD operations for self-service actions
-- Supports creating, updating (PATCH), and deleting actions
-- Comprehensive error handling for 400/422/404 responses
-
-**Pages API (`pages.ts`)**:
-- List, get, and create pages
-- Automatic root dashboard-widget creation for dashboards
-- Graceful handling of existing page identifiers
-
-**Widgets API (`widgets.ts`)**:
-- Create root dashboard-widget containers
-- Add widgets to pages with type alias support
-- Property formatting with automatic `property#` prefixing
-
-### Blueprint API Enhancements
-
-**New Functions**:
-- `updateBlueprintRelations()`: Update blueprint relations
-- `updateBlueprintSchemaProperties()`: Add/update schema properties
-- `createScorecard()`: Create scorecards
-- `updateScorecard()`: Update scorecards
-- `deleteScorecard()`: Delete scorecards
-- `getAllScorecards()`: Get all scorecards
-
-### Entity API Enhancements
-
-**New Function**:
-- `upsertEntity()`: Create or update entities using blueprint-scoped API with upsert and merge enabled
